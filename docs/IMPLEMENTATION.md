@@ -2,9 +2,9 @@
 
 ## 起步结构
 
-M0 已建立 `androidApp`、`shared`、`contracts` 和 `server` 四个模块，并验证 Android debug 构建、共享测试、服务端 `/health` 测试。M0.5 将 Compose 启动页和 Ktor Client 健康检查接通；业务页面按后续切片实现。
+M0 已建立 `androidApp`、`shared`、`contracts` 和 `server` 四个模块，并验证 Android debug 构建、共享测试、服务端 `/health` 测试。M0.5 已将 Compose 启动页和 Ktor Client 健康检查接通。M1 当前实现本地假短信登录切片，真实短信接入仍待后续完成。
 
-M0 now contains the four modules `androidApp`, `shared`, `contracts`, and `server`, with Android debug assembly, shared tests, and the server `/health` test verified. M0.5 connects the Compose launcher screen to a Ktor Client health check; business pages follow in later slices.
+M0 now contains the four modules `androidApp`, `shared`, `contracts`, and `server`, with Android debug assembly, shared tests, and the server `/health` test verified. M0.5 connects the Compose launcher screen to a Ktor Client health check. M1 now implements a local fake-SMS sign-in slice; real SMS integration remains later work.
 
 建议先保持少量职责明确的模块，命名在工程创建时固定。完整技术基线见 Knot 的 [STACK.md](https://github.com/knot-kt/knot/blob/main/docs/STACK.md)：
 
