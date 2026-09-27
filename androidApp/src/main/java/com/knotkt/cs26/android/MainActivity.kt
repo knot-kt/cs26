@@ -99,6 +99,13 @@ class MainActivity : ComponentActivity() {
                 onPublishPost = ::publishPost,
                 onRefreshPosts = ::refreshPosts,
                 onAddImage = { imagePicker.launch("image/*") },
+                onToggleLike = ::toggleLike,
+                onDeletePost = ::deletePost,
+                onLoadComments = ::loadComments,
+                onCommentInputChanged = { postId, input ->
+                    postState = postState.copy(commentInputs = postState.commentInputs + (postId to input), error = null)
+                },
+                onAddComment = ::addComment,
                 chatState = chatState,
                 onChatInputChanged = { input -> chatState = chatState.copy(input = input, error = null) },
                 onConnectChat = ::connectChat,
@@ -187,6 +194,79 @@ class MainActivity : ComponentActivity() {
                 onSuccess = { posts -> postState.copy(posts = posts, isLoading = false) },
                 onFailure = { error -> postState.copy(isLoading = false, error = error.message ?: "load posts failed") },
             )
+        }
+    }
+
+    private fun toggleLike(postId: String) {
+        val session = authState.session ?: return
+        postState = postState.copy(isInteracting = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.toggleLike(session.accessToken, postId) }
+            }
+            if (result.isSuccess) refreshPosts()
+            postState = postState.copy(
+                isInteracting = false,
+                error = result.exceptionOrNull()?.message,
+            )
+        }
+    }
+
+    private fun deletePost(postId: String) {
+        val session = authState.session ?: return
+        postState = postState.copy(isInteracting = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.delete(session.accessToken, postId) }
+            }
+            if (result.isSuccess) refreshPosts()
+            postState = postState.copy(
+                isInteracting = false,
+                error = result.exceptionOrNull()?.message,
+            )
+        }
+    }
+
+    private fun loadComments(postId: String) {
+        val session = authState.session ?: return
+        postState = postState.copy(isInteracting = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.comments(session.accessToken, postId) }
+            }
+            postState = result.fold(
+                onSuccess = { comments ->
+                    postState.copy(
+                        isInteracting = false,
+                        commentsByPost = postState.commentsByPost + (postId to comments),
+                    )
+                },
+                onFailure = { error -> postState.copy(isInteracting = false, error = error.message ?: "load comments failed") },
+            )
+        }
+    }
+
+    private fun addComment(postId: String) {
+        val session = authState.session ?: return
+        val content = postState.commentInputs[postId].orEmpty().trim()
+        if (content.isBlank()) return
+        postState = postState.copy(isInteracting = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.addComment(session.accessToken, postId, content) }
+            }
+            if (result.isSuccess) {
+                val comment = result.getOrThrow()
+                postState = postState.copy(
+                    isInteracting = false,
+                    commentsByPost = postState.commentsByPost +
+                        (postId to (postState.commentsByPost[postId].orEmpty() + comment)),
+                    commentInputs = postState.commentInputs - postId,
+                )
+                refreshPosts()
+            } else {
+                postState = postState.copy(isInteracting = false, error = result.exceptionOrNull()?.message ?: "add comment failed")
+            }
         }
     }
 
