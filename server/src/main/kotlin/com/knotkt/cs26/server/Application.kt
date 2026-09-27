@@ -20,7 +20,11 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 
-fun Application.module() = module(InMemoryAuthService())
+fun Application.module() = module(
+    authService = DatabaseConfig.fromEnvironment()
+        ?.let { config -> InMemoryAuthService(PostgresAuthStore(config.dataSource())) }
+        ?: InMemoryAuthService(),
+)
 
 fun Application.module(authService: AuthService) {
     install(ContentNegotiation) {

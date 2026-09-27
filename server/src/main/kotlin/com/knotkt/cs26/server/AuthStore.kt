@@ -19,7 +19,7 @@ interface AuthStore {
 
     fun decrementAttempts(phone: String): Int?
 
-    fun saveSession(session: AuthSession)
+    fun saveSession(phone: String, session: AuthSession)
 
     fun revokeSession(accessToken: String): Boolean
 }
@@ -48,7 +48,7 @@ class InMemoryAuthStore : AuthStore {
         return remaining
     }
 
-    override fun saveSession(session: AuthSession) {
+    override fun saveSession(phone: String, session: AuthSession) {
         sessions[session.accessToken] = session
     }
 
