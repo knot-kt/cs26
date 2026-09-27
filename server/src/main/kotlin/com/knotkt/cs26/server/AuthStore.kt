@@ -21,6 +21,8 @@ interface AuthStore {
 
     fun saveSession(phone: String, session: AuthSession)
 
+    fun findSession(accessToken: String): AuthSession?
+
     fun revokeSession(accessToken: String): Boolean
 }
 
@@ -51,6 +53,8 @@ class InMemoryAuthStore : AuthStore {
     override fun saveSession(phone: String, session: AuthSession) {
         sessions[session.accessToken] = session
     }
+
+    override fun findSession(accessToken: String): AuthSession? = sessions[accessToken]
 
     override fun revokeSession(accessToken: String): Boolean = sessions.remove(accessToken) != null
 }

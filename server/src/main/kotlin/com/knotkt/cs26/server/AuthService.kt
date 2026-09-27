@@ -16,6 +16,8 @@ interface AuthService {
 
     fun verifyCode(phone: String, code: String): AuthSession?
 
+    fun findSession(accessToken: String): AuthSession?
+
     fun logout(accessToken: String): Boolean
 }
 
@@ -78,6 +80,8 @@ class InMemoryAuthService(
     }
 
     override fun logout(accessToken: String): Boolean = store.revokeSession(accessToken)
+
+    override fun findSession(accessToken: String): AuthSession? = store.findSession(accessToken)
 
     private fun response() = RequestCodeResponse(
         expiresInSeconds = CODE_TTL_MILLIS.toInt() / 1_000,

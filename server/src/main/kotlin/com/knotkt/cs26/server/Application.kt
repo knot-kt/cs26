@@ -77,6 +77,20 @@ fun Application.module(authService: AuthService) {
                 call.respond(HttpStatusCode.NoContent)
             }
         }
+        get("/auth/session") {
+            val token = call.request.header(HttpHeaders.Authorization)
+                ?.removePrefix("Bearer ")
+                ?.takeIf { it.isNotBlank() }
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(
+                    HttpStatusCode.Unauthorized,
+                    AuthError("invalid_session", "session is invalid or expired"),
+                )
+            } else {
+                call.respond(session)
+            }
+        }
     }
 }
 
