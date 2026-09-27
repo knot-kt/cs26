@@ -30,6 +30,13 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import io.ktor.server.websocket.WebSockets
+import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.Frame
+import io.ktor.websocket.close
+import io.ktor.websocket.readText
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 fun Application.module() = module(
     authService = DatabaseConfig.fromEnvironment()
@@ -42,10 +49,12 @@ fun Application.module(
     postStore: PostStore = InMemoryPostStore(),
     mediaStorage: MediaStorage = LocalMediaStorage(),
     chatStore: ChatStore = InMemoryChatStore(),
+    chatHub: ChatHub = ChatHub(),
 ) {
     install(ContentNegotiation) {
         json()
     }
+    install(WebSockets)
 
     routing {
         get("/health") {
@@ -231,6 +240,29 @@ fun Application.module(
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
                     call.respond(MessagePage(chatStore.list(conversationId, limit)))
                 }
+            }
+        }
+        webSocket("/conversations/{id}/stream") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val conversationId = call.parameters["id"]
+            if (session == null || conversationId.isNullOrBlank()) {
+                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.VIOLATED_POLICY, "invalid session or conversation"))
+                return@webSocket
+            }
+            chatHub.join(conversationId, this)
+            try {
+                for (frame in incoming) {
+                    if (frame is Frame.Text) {
+                        val request = runCatching { Json.decodeFromString<SendMessageRequest>(frame.readText()) }.getOrNull()
+                        val content = request?.content?.trim()
+                        if (request == null || content.isNullOrEmpty() || content.length > 4_000 || request.clientMessageId.isBlank()) continue
+                        val message = chatStore.send(conversationId, session.userId, request.clientMessageId, content)
+                        chatHub.broadcast(conversationId, Json.encodeToString(message))
+                    }
+                }
+            } finally {
+                chatHub.leave(conversationId, this)
             }
         }
     }
