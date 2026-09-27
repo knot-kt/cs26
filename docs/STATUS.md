@@ -8,8 +8,8 @@ Updated: 2026-09-27
 | --- | --- | --- | --- |
 | M0 | Complete / 完成 | Kotlin, Compose, Ktor, PostgreSQL migrations, CI and PR gate | Final task-sheet difference confirmation |
 | M1 | Foundation / 基础完成 | Local SMS flow, session lookup/revocation, PostgreSQL adapter | Real SMS, third-party auth, device credential storage |
-| M2 | In progress / 进行中 | Text feed, image picker, local upload, media metadata, like, comment, owner delete | OSS adapter, camera capture, Android interaction screens |
-| M3 | In progress / 进行中 | Message history, client-ID idempotency, WebSocket server/client, chat media metadata | Audio capture/playback, device reconnect evidence |
+| M2 | In progress / 进行中 | Text feed, image picker, local upload, media metadata, like, comment, owner delete, Android interaction UI | OSS adapter, camera capture, detail/pagination evidence |
+| M3 | In progress / 进行中 | Message history, client-ID idempotency, WebSocket server/client, image/audio capture, authenticated playback | Delivery receipts, retry/missing-message evidence, device reconnect evidence |
 | M4 | In progress / 进行中 | Announcement records, unread/read sync, deep links, realtime stream, Android list | ntfy/UnifiedPush background delivery evidence |
 | M5 | Foundation / 基础完成 | Debug APK build, server distribution, package workflow, evidence template | Signed release, deployment runbook, performance measurements |
 | M6 | Preparation / 准备中 | Knot extraction gate and cross-repository policy | First reusable module and second rebuildable example |
@@ -30,6 +30,6 @@ Pull requests are required for both repositories. CS26 PR checks run the full JV
 
 ## Next slice / 下一切片
 
-Complete M3 media delivery and M4 background delivery evidence, then implement signed packaging and performance records before extracting stable boundaries to Knot.
+Complete M2 provider/camera evidence and M3 reliability evidence, then validate M4 background delivery before signed packaging and performance records. Extract stable boundaries to Knot only after those records exist.
 
-先完成 M3 媒体消息和 M4 后台送达证据，再做签名安装包与性能记录，最后把稳定边界提取到 Knot。
+先完成 M2 供应商/相机证据和 M3 可靠性证据，再验证 M4 后台送达，然后做签名安装包与性能记录。只有证据齐全后，才把稳定边界提取到 Knot。
