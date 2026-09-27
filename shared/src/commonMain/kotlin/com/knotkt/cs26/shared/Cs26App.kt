@@ -221,10 +221,22 @@ fun Cs26App(
                     Text("Chat", style = MaterialTheme.typography.titleMedium)
                     Button(
                         onClick = onConnectChat,
-                        enabled = !chatState.isConnecting,
+                        enabled = !chatState.isConnecting && !chatState.isConnected,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(if (chatState.isConnecting) "Connecting" else "Connect chat")
+                        Text(
+                            when {
+                                chatState.isConnecting -> "Connecting"
+                                chatState.isConnected -> "Connected"
+                                else -> "Connect chat"
+                            },
+                        )
+                    }
+                    if (chatState.pendingMessages.isNotEmpty()) {
+                        Text("Pending messages: ${chatState.pendingMessages.size}")
+                    }
+                    if (chatState.lastDeliveryStatus != null) {
+                        Text("Last delivery: ${chatState.lastDeliveryStatus}")
                     }
                     chatState.messages.forEach { message ->
                         Column(modifier = Modifier.fillMaxWidth()) {

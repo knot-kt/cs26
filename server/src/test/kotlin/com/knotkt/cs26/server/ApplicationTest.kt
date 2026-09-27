@@ -6,15 +6,21 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import com.knotkt.cs26.contracts.MediaKind
+import com.knotkt.cs26.contracts.ChatStreamEvent
+import kotlinx.serialization.json.Json
 
 class ApplicationTest {
     @Test
@@ -186,6 +192,48 @@ class ApplicationTest {
         }
         assertEquals(HttpStatusCode.OK, history.status)
         assertEquals(1, Regex("clientMessageId").findAll(history.bodyAsText()).count())
+    }
+
+    @Test
+    fun websocketRetryReturnsReceiptWithoutDuplicatingHistory() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+        val wsClient = createClient {
+            install(WebSockets)
+        }
+        val body = """{"clientMessageId":"ws-client-1","content":"hello over ws"}"""
+
+        wsClient.webSocket(
+            path = "/conversations/demo/stream",
+            request = { header(HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
+        ) {
+            send(Frame.Text(body))
+            val firstMessage = Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Message
+            val firstReceipt = Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Receipt
+
+            send(Frame.Text(body))
+            val retryMessage = Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Message
+            val retryReceipt = Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Receipt
+
+            assertEquals(firstMessage.message.id, retryMessage.message.id)
+            assertEquals(firstReceipt.messageId, retryReceipt.messageId)
+            assertEquals(firstReceipt.clientMessageId, retryReceipt.clientMessageId)
+        }
+
+        val history = client.get("/conversations/demo/messages") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }
+        assertEquals(1, Regex("ws-client-1").findAll(history.bodyAsText()).count())
     }
 
     @Test

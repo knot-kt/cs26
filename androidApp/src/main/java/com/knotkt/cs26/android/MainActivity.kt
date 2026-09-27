@@ -24,7 +24,7 @@ import com.knotkt.cs26.shared.ChatRepository
 import com.knotkt.cs26.shared.ChatState
 import com.knotkt.cs26.shared.NoticeRepository
 import com.knotkt.cs26.shared.NoticeState
-import com.knotkt.cs26.contracts.ChatMessage
+import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
 import com.knotkt.cs26.contracts.MediaKind
@@ -291,13 +291,18 @@ class MainActivity : ComponentActivity() {
     private fun connectChat() {
         val session = authState.session ?: return
         chatJob?.cancel()
-        chatState = chatState.copy(isConnecting = true, error = null)
+        chatState = chatState.copy(isConnecting = true, isConnected = false, error = null)
         chatJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
                 try {
                     val history = chatRepository.history(session.accessToken, chatState.conversationId)
                     withContext(Dispatchers.Main) {
-                        chatState = chatState.copy(messages = history, isConnecting = false, error = null)
+                        chatState = chatState.copy(
+                            messages = history,
+                            isConnecting = false,
+                            isConnected = true,
+                            error = null,
+                        )
                     }
                     client.webSocket(
                         urlString = baseUrl.replaceFirst("http", "ws") +
@@ -305,12 +310,26 @@ class MainActivity : ComponentActivity() {
                         request = { header(io.ktor.http.HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
                     ) {
                         chatSession = this
+                        val pending = withContext(Dispatchers.Main) { chatState.pendingMessages.toList() }
+                        pending.forEach { request ->
+                            send(Frame.Text(Json.encodeToString(request)))
+                        }
                         for (frame in incoming) {
                             if (frame is Frame.Text) {
-                                val message = Json.decodeFromString<ChatMessage>(frame.readText())
-                                withContext(Dispatchers.Main) {
-                                    if (chatState.messages.none { it.id == message.id }) {
-                                        chatState = chatState.copy(messages = chatState.messages + message)
+                                when (val event = Json.decodeFromString<ChatStreamEvent>(frame.readText())) {
+                                    is ChatStreamEvent.Message -> withContext(Dispatchers.Main) {
+                                        val message = event.message
+                                        if (chatState.messages.none { it.id == message.id }) {
+                                            chatState = chatState.copy(messages = chatState.messages + message)
+                                        }
+                                    }
+                                    is ChatStreamEvent.Receipt -> withContext(Dispatchers.Main) {
+                                        chatState = chatState.copy(
+                                            pendingMessages = chatState.pendingMessages.filterNot {
+                                                it.clientMessageId == event.clientMessageId
+                                            },
+                                            lastDeliveryStatus = event.status.name.lowercase(),
+                                        )
                                     }
                                 }
                             }
@@ -318,10 +337,17 @@ class MainActivity : ComponentActivity() {
                     }
                 } catch (error: Throwable) {
                     withContext(Dispatchers.Main) {
-                        chatState = chatState.copy(isConnecting = false, error = error.message ?: "chat disconnected")
+                        chatState = chatState.copy(
+                            isConnecting = false,
+                            isConnected = false,
+                            error = error.message ?: "chat disconnected",
+                        )
                     }
                 } finally {
                     chatSession = null
+                    withContext(Dispatchers.Main) {
+                        chatState = chatState.copy(isConnected = false)
+                    }
                 }
                 delay(1_000)
             }
@@ -329,21 +355,31 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendChat() {
+        val input = chatState.input.trim()
+        if (input.isBlank() && chatState.attachments.isEmpty()) return
+        val request = SendMessageRequest(UUID.randomUUID().toString(), input, chatState.attachments)
+        chatState = chatState.copy(
+            input = "",
+            attachments = emptyList(),
+            pendingMessages = chatState.pendingMessages + request,
+            error = null,
+        )
         val session = chatSession ?: run {
             connectChat()
             return
         }
-        val input = chatState.input.trim()
-        if (input.isBlank() && chatState.attachments.isEmpty()) return
-        val request = SendMessageRequest(UUID.randomUUID().toString(), input, chatState.attachments)
-        chatState = chatState.copy(input = "", attachments = emptyList())
+        sendPendingMessage(session, request)
+    }
+
+    private fun sendPendingMessage(
+        session: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession,
+        request: SendMessageRequest,
+    ) {
         scope.launch(Dispatchers.IO) {
             runCatching { session.send(Frame.Text(Json.encodeToString(request))) }
                 .onFailure { error ->
                     withContext(Dispatchers.Main) {
                         chatState = chatState.copy(
-                            input = input,
-                            attachments = request.attachments,
                             error = error.message ?: "send failed",
                         )
                     }
