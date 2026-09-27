@@ -51,6 +51,12 @@ class ApplicationTest {
             ?.get(1)
         check(accessToken != null)
 
+        val currentSession = client.get("/auth/session") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
+        assertEquals(HttpStatusCode.OK, currentSession.status)
+        assertEquals(true, currentSession.bodyAsText().contains(accessToken))
+
         val logout = client.post("/auth/logout") {
             header(HttpHeaders.Authorization, "Bearer $accessToken")
         }
@@ -60,6 +66,11 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer $accessToken")
         }
         assertEquals(HttpStatusCode.Unauthorized, secondLogout.status)
+
+        val expiredSession = client.get("/auth/session") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, expiredSession.status)
     }
 
     @Test

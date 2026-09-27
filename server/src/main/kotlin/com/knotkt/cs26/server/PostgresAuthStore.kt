@@ -109,6 +109,27 @@ class PostgresAuthStore(
         }
     }
 
+    override fun findSession(accessToken: String): AuthSession? = dataSource.connection.use { connection ->
+        connection.prepareStatement(
+            """
+            SELECT s.user_id, u.phone_e164
+            FROM auth_sessions s
+            JOIN auth_users u ON u.id = s.user_id
+            WHERE s.access_token_hash = ?
+              AND s.revoked_at IS NULL
+              AND s.expires_at > CURRENT_TIMESTAMP
+            """.trimIndent(),
+        ).use { statement ->
+            statement.setBytes(1, hashToken(accessToken))
+            statement.executeQuery().use { result ->
+                if (!result.next()) null else AuthSession(
+                    userId = result.getObject("user_id", UUID::class.java).toString(),
+                    accessToken = accessToken,
+                )
+            }
+        }
+    }
+
     override fun revokeSession(accessToken: String): Boolean = dataSource.connection.use { connection ->
         connection.prepareStatement(
             """
