@@ -25,3 +25,9 @@ Before a signed release, add signing configuration through GitHub Environment se
 Production deployment, backups, TLS, and OSS credentials remain environment-owned tasks. Keep `.env.example` free of values.
 
 生产部署、备份、TLS 和 OSS 凭证由部署环境管理，`.env.example` 只保留字段名。
+
+## Performance / 性能
+
+With an authorized emulator or device connected, run `scripts/collect-performance.sh` and complete `docs/evidence/PERFORMANCE_TEMPLATE.md`. Keep the raw output directory with the report; no CI job fabricates device measurements.
+
+连接已授权的模拟器或真机后运行 `scripts/collect-performance.sh`，再填写 `docs/evidence/PERFORMANCE_TEMPLATE.md`。报告必须保留原始输出目录；CI 不生成虚假的设备测量数据。
