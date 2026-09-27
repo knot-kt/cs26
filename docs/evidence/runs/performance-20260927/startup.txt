@@ -1,0 +1,7 @@
+Starting: Intent { cmp=com.knotkt.cs26.android/.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: com.knotkt.cs26.android/.MainActivity
+TotalTime: 654
+WaitTime: 657
+Complete
