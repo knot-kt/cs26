@@ -238,7 +238,9 @@ fun Application.module(
             val content = request.content.trim()
             if (session == null) {
                 call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
-            } else if (conversationId.isNullOrBlank() || request.clientMessageId.isBlank() || content.isEmpty() || content.length > 4_000) {
+            } else if (conversationId.isNullOrBlank() || request.clientMessageId.isBlank() ||
+                (content.isEmpty() && request.attachments.isEmpty()) || content.length > 4_000
+            ) {
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_message", "message fields are invalid"))
             } else if (request.attachments.size > 9 || request.attachments.any { it.objectKey.isBlank() || it.sizeBytes < 0 }) {
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_media", "attachments are invalid"))
@@ -331,8 +333,11 @@ fun Application.module(
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         val request = runCatching { Json.decodeFromString<SendMessageRequest>(frame.readText()) }.getOrNull()
-                        val content = request?.content?.trim()
-                        if (request == null || content.isNullOrEmpty() || content.length > 4_000 || request.clientMessageId.isBlank()) continue
+                        val content = request?.content?.trim().orEmpty()
+                        if (request == null ||
+                            (content.isEmpty() && request.attachments.isEmpty()) ||
+                            content.length > 4_000 || request.clientMessageId.isBlank()
+                        ) continue
                         val message = chatStore.send(conversationId, session.userId, request.clientMessageId, content, request.attachments)
                         chatHub.broadcast(conversationId, Json.encodeToString(message))
                     }
