@@ -3,6 +3,8 @@ package com.knotkt.cs26.server
 import com.knotkt.cs26.contracts.AuthError
 import com.knotkt.cs26.contracts.CreatePostRequest
 import com.knotkt.cs26.contracts.CreateCommentRequest
+import com.knotkt.cs26.contracts.MessagePage
+import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.PostPage
 import com.knotkt.cs26.contracts.MediaUploadResponse
 import com.knotkt.cs26.contracts.RequestCodeRequest
@@ -39,6 +41,7 @@ fun Application.module(
     authService: AuthService,
     postStore: PostStore = InMemoryPostStore(),
     mediaStorage: MediaStorage = LocalMediaStorage(),
+    chatStore: ChatStore = InMemoryChatStore(),
 ) {
     install(ContentNegotiation) {
         json()
@@ -201,6 +204,34 @@ fun Application.module(
             }
             val stored = mediaStorage.store(payload, mimeType)
             call.respond(MediaUploadResponse(stored.objectKey, stored.mimeType, stored.sizeBytes))
+        }
+        post("/conversations/{id}/messages") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val conversationId = call.parameters["id"]
+            val request = call.receive<SendMessageRequest>()
+            val content = request.content.trim()
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (conversationId.isNullOrBlank() || request.clientMessageId.isBlank() || content.isEmpty() || content.length > 4_000) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_message", "message fields are invalid"))
+            } else {
+                call.respond(HttpStatusCode.Created, chatStore.send(conversationId, session.userId, request.clientMessageId, content))
+            }
+        }
+        get("/conversations/{id}/messages") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            if (token == null || authService.findSession(token) == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                val conversationId = call.parameters["id"]
+                if (conversationId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, AuthError("invalid_conversation", "conversation id is required"))
+                } else {
+                    val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
+                    call.respond(MessagePage(chatStore.list(conversationId, limit)))
+                }
+            }
         }
     }
 }
