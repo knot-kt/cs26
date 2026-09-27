@@ -9,6 +9,11 @@ data class CreatePostRequest(
 )
 
 @Serializable
+data class CreateCommentRequest(
+    val content: String,
+)
+
+@Serializable
 enum class MediaKind {
     IMAGE,
     AUDIO,
@@ -37,6 +42,18 @@ data class Post(
     val content: String,
     val createdAtEpochMillis: Long,
     val attachments: List<MediaAttachment> = emptyList(),
+    val likeCount: Int = 0,
+    val commentCount: Int = 0,
+    val likedByViewer: Boolean = false,
+)
+
+@Serializable
+data class Comment(
+    val id: String,
+    val postId: String,
+    val authorId: String,
+    val content: String,
+    val createdAtEpochMillis: Long,
 )
 
 @Serializable
