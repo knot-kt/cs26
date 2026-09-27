@@ -53,6 +53,7 @@ fun Application.module(
     chatStore: ChatStore = InMemoryChatStore(),
     chatHub: ChatHub = ChatHub(),
     noticeStore: NoticeStore = InMemoryNoticeStore(),
+    noticeHub: NoticeHub = NoticeHub(),
 ) {
     install(ContentNegotiation) {
         json()
@@ -262,7 +263,9 @@ fun Application.module(
             if (title.isEmpty() || title.length > 200 || body.isEmpty() || body.length > 10_000) {
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_notice", "announcement fields are invalid"))
             } else {
-                call.respond(HttpStatusCode.Created, noticeStore.publish(title, body, request.deepLink))
+                val notice = noticeStore.publish(title, body, request.deepLink)
+                noticeHub.broadcast(Json.encodeToString(notice))
+                call.respond(HttpStatusCode.Created, notice)
             }
         }
         get("/notifications") {
@@ -285,6 +288,22 @@ fun Application.module(
                 call.respond(HttpStatusCode.NotFound, AuthError("notice_not_found", "notification does not exist"))
             } else {
                 call.respond(HttpStatusCode.NoContent)
+            }
+        }
+        webSocket("/notifications/stream") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.VIOLATED_POLICY, "invalid session"))
+                return@webSocket
+            }
+            noticeHub.join(session.userId, this)
+            try {
+                for (frame in incoming) {
+                    if (frame is Frame.Close) break
+                }
+            } finally {
+                noticeHub.leave(session.userId, this)
             }
         }
         webSocket("/conversations/{id}/stream") {
