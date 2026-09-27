@@ -16,6 +16,8 @@ import com.knotkt.cs26.shared.PostRepository
 import com.knotkt.cs26.shared.PostState
 import com.knotkt.cs26.shared.ChatRepository
 import com.knotkt.cs26.shared.ChatState
+import com.knotkt.cs26.shared.NoticeRepository
+import com.knotkt.cs26.shared.NoticeState
 import com.knotkt.cs26.contracts.ChatMessage
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
@@ -54,10 +56,12 @@ class MainActivity : ComponentActivity() {
     private val authRepository = AuthRepository(client, "http://10.0.2.2:8080")
     private val postRepository = PostRepository(client, "http://10.0.2.2:8080")
     private val chatRepository = ChatRepository(client, "http://10.0.2.2:8080")
+    private val noticeRepository = NoticeRepository(client, "http://10.0.2.2:8080")
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
     private var chatState by mutableStateOf(ChatState())
+    private var noticeState by mutableStateOf(NoticeState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -85,6 +89,9 @@ class MainActivity : ComponentActivity() {
                 onChatInputChanged = { input -> chatState = chatState.copy(input = input, error = null) },
                 onConnectChat = ::connectChat,
                 onSendChat = ::sendChat,
+                noticeState = noticeState,
+                onRefreshNotices = ::refreshNotices,
+                onMarkNoticeRead = ::markNoticeRead,
             )
         }
     }
@@ -148,6 +155,7 @@ class MainActivity : ComponentActivity() {
                 },
             )
             if (result.isSuccess) refreshPosts()
+            if (result.isSuccess) refreshNotices()
         }
     }
 
@@ -223,6 +231,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshNotices() {
+        val session = authState.session ?: return
+        noticeState = noticeState.copy(isLoading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { noticeRepository.list(session.accessToken) }
+            }
+            noticeState = result.fold(
+                onSuccess = { notices -> noticeState.copy(notices = notices, isLoading = false) },
+                onFailure = { error -> noticeState.copy(isLoading = false, error = error.message ?: "load notifications failed") },
+            )
+        }
+    }
+
+    private fun markNoticeRead(noticeId: String) {
+        val session = authState.session ?: return
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { noticeRepository.markRead(session.accessToken, noticeId) }
+            }
+            if (result.isSuccess) refreshNotices()
+            else noticeState = noticeState.copy(error = result.exceptionOrNull()?.message ?: "mark notification failed")
+        }
+    }
+
     private fun publishPost() {
         val session = authState.session ?: return
         val content = postState.content.trim()
@@ -275,6 +308,7 @@ class MainActivity : ComponentActivity() {
             chatJob?.cancel()
             chatSession = null
             chatState = ChatState()
+            noticeState = NoticeState()
         }
     }
 
