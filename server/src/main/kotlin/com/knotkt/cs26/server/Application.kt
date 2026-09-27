@@ -1,6 +1,8 @@
 package com.knotkt.cs26.server
 
 import com.knotkt.cs26.contracts.AuthError
+import com.knotkt.cs26.contracts.ChatDeliveryStatus
+import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.CreatePostRequest
 import com.knotkt.cs26.contracts.CreateCommentRequest
 import com.knotkt.cs26.contracts.MessagePage
@@ -348,7 +350,21 @@ fun Application.module(
                             content.length > 4_000 || request.clientMessageId.isBlank()
                         ) continue
                         val message = chatStore.send(conversationId, session.userId, request.clientMessageId, content, request.attachments)
-                        chatHub.broadcast(conversationId, Json.encodeToString(message))
+                        chatHub.broadcast(
+                            conversationId,
+                            Json.encodeToString<ChatStreamEvent>(ChatStreamEvent.Message(message)),
+                        )
+                        send(
+                            Frame.Text(
+                                Json.encodeToString<ChatStreamEvent>(
+                                    ChatStreamEvent.Receipt(
+                                        clientMessageId = message.clientMessageId,
+                                        messageId = message.id,
+                                        status = ChatDeliveryStatus.ACCEPTED,
+                                    ),
+                                ),
+                            ),
+                        )
                     }
                 }
             } finally {
