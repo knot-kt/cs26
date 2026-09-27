@@ -8,7 +8,7 @@ CS 表达计算机专业背景，26 纪念作者 26 岁本科毕业。应用名�
 
 完成「基于 Android Studio 的校园社交 APP 开发（原生开发）」毕业设计，交付可以运行、部署和验收的 Android 应用与服务端；同时用真实业务验证 [Knot](https://github.com/knot-kt/knot) 脚手架设计。
 
-Knot 是逐步沉淀的基座，CS26 是完整产品。当前已完成 M0.5 工程骨架、Compose 启动页和 health endpoint 纵向验证，正在实现 M1 本地假短信登录切片；真实短信尚未接入。
+Knot 是逐步沉淀的基座，CS26 是完整产品。当前已完成 M0.5 工程骨架、Compose 启动页和 health endpoint 纵向验证，以及 M1 本地假短信登录切片；真实短信尚未接入。
 
 ## 计划功能
 
@@ -61,7 +61,7 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 ./gradlew :server:run
 ```
 
-服务端 health endpoint 为 `GET /health`，开发认证接口为 `POST /auth/code/request` 和 `POST /auth/code/verify`，固定开发验证码为 `123456`。Android 启动页已使用 Compose 渲染，并通过 Ktor Client 检查本机服务；模拟器访问宿主机使用 `10.0.2.2`。开发认证接口不能用于生产；生产部署尚未开始，任何示例配置都不得包含真实密钥。
+服务端 health endpoint 为 `GET /health`，开发认证接口为 `POST /auth/code/request`、`POST /auth/code/verify` 和 Bearer Token 退出接口 `POST /auth/logout`。固定开发验证码为 `123456`，适配器已验证过期、尝试次数、重复发送冷却和会话撤销边界。Android 启动页已使用 Compose 渲染，并通过 Ktor Client 检查本机服务；模拟器访问宿主机使用 `10.0.2.2`。开发认证接口不能用于生产；生产部署尚未开始，任何示例配置都不得包含真实密钥。
 
 ## 毕设与长期维护
 

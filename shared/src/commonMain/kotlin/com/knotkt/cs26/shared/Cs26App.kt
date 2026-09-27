@@ -26,6 +26,7 @@ fun Cs26App(
     onCodeChanged: (String) -> Unit,
     onRequestCode: () -> Unit,
     onVerifyCode: () -> Unit,
+    onLogout: () -> Unit,
 ) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -72,6 +73,9 @@ fun Cs26App(
                 }
                 if (authState.session != null) {
                     Text("Signed in as ${authState.session.userId}")
+                    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                        Text("Sign out")
+                    }
                 }
                 if (authState.error != null) {
                     Text(

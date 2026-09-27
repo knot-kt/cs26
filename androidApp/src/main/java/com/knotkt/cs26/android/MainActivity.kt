@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
                 onCodeChanged = { code -> authState = authState.copy(code = code, error = null) },
                 onRequestCode = ::requestCode,
                 onVerifyCode = ::verifyCode,
+                onLogout = ::logout,
             )
         }
     }
@@ -109,6 +110,16 @@ class MainActivity : ComponentActivity() {
                     )
                 },
             )
+        }
+    }
+
+    private fun logout() {
+        val session = authState.session ?: return
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { authRepository.logout(session.accessToken) }
+            }
+            authState = AuthState(phone = authState.phone)
         }
     }
 
