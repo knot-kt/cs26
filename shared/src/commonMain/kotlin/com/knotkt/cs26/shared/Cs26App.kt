@@ -43,6 +43,7 @@ fun Cs26App(
     onConnectChat: () -> Unit,
     onSendChat: () -> Unit,
     onAddChatImage: () -> Unit,
+    onPlayAudio: (String) -> Unit,
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
     noticeState: NoticeState,
@@ -199,6 +200,11 @@ fun Cs26App(
                             Text("${message.senderId}: ${message.content}")
                             message.attachments.forEach { attachment ->
                                 Text("${attachment.kind}: ${attachment.objectKey} (${attachment.sizeBytes} bytes)")
+                                if (attachment.kind == com.knotkt.cs26.contracts.MediaKind.AUDIO) {
+                                    Button(onClick = { onPlayAudio(attachment.objectKey) }) {
+                                        Text("Play audio")
+                                    }
+                                }
                             }
                         }
                     }

@@ -83,6 +83,12 @@ class PostRepository(
         }
         .body()
 
+    suspend fun downloadMedia(accessToken: String, objectKey: String): ByteArray = client
+        .get("$baseUrl/media/${objectKey.removePrefix("uploads/")}") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
+        .body()
+
     suspend fun uploadImage(accessToken: String, bytes: ByteArray, mimeType: String): MediaUploadResponse =
         uploadMedia(accessToken, bytes, mimeType)
 }
