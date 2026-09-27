@@ -60,11 +60,12 @@ class MainActivity : ComponentActivity() {
         }
         install(WebSockets)
     }
-    private val healthRepository = HealthRepository(client, "http://10.0.2.2:8080")
-    private val authRepository = AuthRepository(client, "http://10.0.2.2:8080")
-    private val postRepository = PostRepository(client, "http://10.0.2.2:8080")
-    private val chatRepository = ChatRepository(client, "http://10.0.2.2:8080")
-    private val noticeRepository = NoticeRepository(client, "http://10.0.2.2:8080")
+    private val baseUrl = BuildConfig.CS26_BASE_URL
+    private val healthRepository = HealthRepository(client, baseUrl)
+    private val authRepository = AuthRepository(client, baseUrl)
+    private val postRepository = PostRepository(client, baseUrl)
+    private val chatRepository = ChatRepository(client, baseUrl)
+    private val noticeRepository = NoticeRepository(client, baseUrl)
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
@@ -299,7 +300,8 @@ class MainActivity : ComponentActivity() {
                         chatState = chatState.copy(messages = history, isConnecting = false, error = null)
                     }
                     client.webSocket(
-                        urlString = "ws://10.0.2.2:8080/conversations/${chatState.conversationId}/stream",
+                        urlString = baseUrl.replaceFirst("http", "ws") +
+                            "/conversations/${chatState.conversationId}/stream",
                         request = { header(io.ktor.http.HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
                     ) {
                         chatSession = this
@@ -371,7 +373,7 @@ class MainActivity : ComponentActivity() {
             while (isActive) {
                 try {
                     client.webSocket(
-                        urlString = "ws://10.0.2.2:8080/notifications/stream",
+                        urlString = baseUrl.replaceFirst("http", "ws") + "/notifications/stream",
                         request = { header(io.ktor.http.HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
                     ) {
                         withContext(Dispatchers.Main) {
