@@ -55,6 +55,7 @@ fun Application.module(
     chatHub: ChatHub = ChatHub(),
     noticeStore: NoticeStore = InMemoryNoticeStore(),
     noticeHub: NoticeHub = NoticeHub(),
+    pushPublisher: PushPublisher = PushPublisher.fromEnvironment(),
 ) {
     install(ContentNegotiation) {
         json()
@@ -279,6 +280,11 @@ fun Application.module(
             } else {
                 val notice = noticeStore.publish(title, body, request.deepLink)
                 noticeHub.broadcast(Json.encodeToString(notice))
+                try {
+                    pushPublisher.publish(notice)
+                } catch (_: Throwable) {
+                    // Background delivery must not roll back a persisted announcement.
+                }
                 call.respond(HttpStatusCode.Created, notice)
             }
         }

@@ -14,12 +14,12 @@ Before a signed release, add signing configuration through GitHub Environment se
 
 1. Build with JDK 21: `./gradlew :server:installDist`.
 2. Apply `server/src/main/resources/db/migration/` in filename order against PostgreSQL.
-3. Set `CS26_DATABASE_URL`, `CS26_DATABASE_USER`, `CS26_DATABASE_PASSWORD`, and optionally `CS26_MEDIA_DIR`.
+3. Set `CS26_DATABASE_URL`, `CS26_DATABASE_USER`, `CS26_DATABASE_PASSWORD`, and optionally `CS26_MEDIA_DIR`. To enable the non-blocking ntfy adapter, set `CS26_NTFY_URL`, `CS26_NTFY_TOPIC`, and `CS26_NTFY_TOKEN` together.
 4. Start the distribution and verify `GET /health` before accepting traffic.
 
 1. 使用 JDK 21 执行 `./gradlew :server:installDist`。
 2. 按文件名顺序将 `server/src/main/resources/db/migration/` 应用到 PostgreSQL。
-3. 配置 `CS26_DATABASE_URL`、`CS26_DATABASE_USER`、`CS26_DATABASE_PASSWORD`，可选配置 `CS26_MEDIA_DIR`。
+3. 配置 `CS26_DATABASE_URL`、`CS26_DATABASE_USER`、`CS26_DATABASE_PASSWORD`，可选配置 `CS26_MEDIA_DIR`。要启用非阻塞 ntfy 适配器，必须同时配置 `CS26_NTFY_URL`、`CS26_NTFY_TOPIC` 和 `CS26_NTFY_TOKEN`。
 4. 启动发行目录，先验证 `GET /health` 再接收流量。
 
 Production deployment, backups, TLS, and OSS credentials remain environment-owned tasks. Keep `.env.example` free of values.

@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
     private var noticeState by mutableStateOf(NoticeState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
+    private var noticeJob: Job? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFile: File? = null
     private var audioPlayer: MediaPlayer? = null
@@ -192,7 +193,10 @@ class MainActivity : ComponentActivity() {
                 },
             )
             if (result.isSuccess) refreshPosts()
-            if (result.isSuccess) refreshNotices()
+            if (result.isSuccess) {
+                refreshNotices()
+                connectNotices()
+            }
         }
     }
 
@@ -356,6 +360,43 @@ class MainActivity : ComponentActivity() {
                 onSuccess = { notices -> noticeState.copy(notices = notices, isLoading = false) },
                 onFailure = { error -> noticeState.copy(isLoading = false, error = error.message ?: "load notifications failed") },
             )
+        }
+    }
+
+    private fun connectNotices() {
+        val session = authState.session ?: return
+        noticeJob?.cancel()
+        noticeState = noticeState.copy(isConnecting = true, error = null)
+        noticeJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    client.webSocket(
+                        urlString = "ws://10.0.2.2:8080/notifications/stream",
+                        request = { header(io.ktor.http.HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
+                    ) {
+                        withContext(Dispatchers.Main) {
+                            noticeState = noticeState.copy(isConnecting = true, error = null)
+                        }
+                        for (frame in incoming) {
+                            if (frame is Frame.Text) {
+                                val notice = Json.decodeFromString<com.knotkt.cs26.contracts.Notice>(frame.readText())
+                                withContext(Dispatchers.Main) {
+                                    val existing = noticeState.notices.firstOrNull { it.id == notice.id }
+                                    noticeState = noticeState.copy(
+                                        notices = listOf(notice.copy(read = existing?.read ?: notice.read)) +
+                                            noticeState.notices.filterNot { it.id == notice.id },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } catch (error: Throwable) {
+                    withContext(Dispatchers.Main) {
+                        noticeState = noticeState.copy(isConnecting = false, error = error.message ?: "notification stream disconnected")
+                    }
+                }
+                delay(1_000)
+            }
         }
     }
 
@@ -572,6 +613,7 @@ class MainActivity : ComponentActivity() {
             postState = PostState()
             chatJob?.cancel()
             chatSession = null
+            noticeJob?.cancel()
             chatState = ChatState()
             noticeState = NoticeState()
         }
