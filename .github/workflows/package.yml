@@ -1,0 +1,35 @@
+name: CS26 Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: cs26-package-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  debug-package:
+    name: Build installable debug package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
+      - name: Build debug APK
+        run: ./gradlew check :androidApp:assembleDebug --no-daemon --console=plain
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cs26-debug-apk-${{ github.sha }}
+          path: androidApp/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
