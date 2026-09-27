@@ -5,5 +5,6 @@ import com.knotkt.cs26.contracts.Notice
 data class NoticeState(
     val notices: List<Notice> = emptyList(),
     val isLoading: Boolean = false,
+    val isConnecting: Boolean = false,
     val error: String? = null,
 )

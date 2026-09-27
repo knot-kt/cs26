@@ -277,6 +277,7 @@ fun Cs26App(
                         }
                         2 -> {
                     Text("Notifications", style = MaterialTheme.typography.titleMedium)
+                    Text(if (noticeState.isConnecting) "Live updates connected" else "Live updates reconnecting")
                     Button(
                         onClick = onRefreshNotices,
                         enabled = !noticeState.isLoading,
