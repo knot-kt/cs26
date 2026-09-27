@@ -8,7 +8,7 @@ CS 表达计算机专业背景，26 纪念作者 26 岁本科毕业。应用名�
 
 完成「基于 Android Studio 的校园社交 APP 开发（原生开发）」毕业设计，交付可以运行、部署和验收的 Android 应用与服务端；同时用真实业务验证 [Knot](https://github.com/knot-kt/knot) 脚手架设计。
 
-Knot 是逐步沉淀的基座，CS26 是完整产品。当前已完成 M0.5 工程骨架、Compose 启动页和 health endpoint 纵向验证，以及 M1 本地假短信登录切片；真实短信尚未接入。
+Knot 是逐步沉淀的基座，CS26 是完整产品。当前 M0 已完成，M1-M5 的本地基础切片正在持续验证，M6 已有可重建的 `knot init` Android/Ktor 脚手架；真实短信、第三方登录、OSS、后台推送和生产部署密钥暂不接入，不阻塞本地开发。
 
 ## 计划功能
 
@@ -25,6 +25,7 @@ Android 是完整验收端；iOS 和 macOS Desktop 按计划验证共享能力�
 - [需求、范围与验收](docs/REQUIREMENTS.md)
 - [实施架构与开发路线](docs/IMPLEMENTATION.md)
 - [交付状态 / Delivery status](docs/STATUS.md)
+- [校园社交界面方案 / Campus social UI proposal](docs/UI-PROPOSAL.md)
 - [开发流程 / Development Workflow](docs/DEVELOPMENT.md)
 - [贡献指南 / Contributing](CONTRIBUTING.md)
 

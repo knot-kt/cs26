@@ -1,6 +1,6 @@
 # Delivery Status / 交付状态
 
-Updated: 2026-09-27
+Updated: 2026-09-28
 
 ## M0-M6 / 阶段状态
 
@@ -12,7 +12,7 @@ Updated: 2026-09-27
 | M3 | In progress / 进行中 | History, client-ID idempotency, WebSocket server/client, message receipts, retry-safe resend, image/audio capture, authenticated playback; real-device recording/upload passed | Intentional device disconnect/reconnect evidence and two-device delivery evidence |
 | M4 | In progress / 进行中 | Announcement records, unread/read sync, deep links, realtime stream, Android reconnect state; Pixel 6 online stream passed | ntfy/UnifiedPush background delivery and provider credentials (deferred) |
 | M5 | Foundation / 基础完成 | Debug APK, configurable device endpoint, server distribution, package workflow, performance capture script/template; APK installed on Pixel 6 | Signed release, deployment runbook, recorded performance report |
-| M6 | Preparation / 准备中 | Knot `IdempotencyCache` module and rebuildable demo merged with CI | `knot init` CLI, versioned CS26 integration, more reusable modules |
+| M6 | In progress / 进行中 | Knot `IdempotencyCache` and the `knot init` Android/Ktor scaffold are merged and rebuilt by CI; default output is `knot-app` | Versioned CS26 integration, more reusable modules, published template artifacts |
 
 ## Evidence / 证据
 
@@ -32,6 +32,6 @@ Pull requests are required for both repositories. CS26 PR checks run the full JV
 
 ## Next slice / 下一切片
 
-Collect M3 retry/receipt/reconnect evidence, then capture a real-device performance record and signed-package checklist. Keep real SMS/OAuth, OSS, push provider and deployment credentials explicitly deferred. Extract stable boundaries to Knot only after the CS26 evidence is repeatable.
+Review the campus social UI proposal, then implement the social shell and feed states. In parallel, collect M3 retry/receipt/reconnect evidence, capture a real-device performance record, and prepare the signed-package checklist. Keep real SMS/OAuth, OSS, push provider and deployment credentials explicitly deferred. Integrate a pinned Knot scaffold only after the CS26 evidence is repeatable.
 
-下一步先补 M3 重试/回执/重连证据，再采集真机性能记录和签名包清单。真实短信/OAuth、OSS、推送供应商和部署密钥继续明确搁置，不阻塞本地开发。CS26 证据可重复后，再沉淀更多 Knot 能力。
+下一步先评审校园社交界面方案，再实现社交主框架和动态状态；同时补 M3 重试/回执/重连证据，采集真机性能记录并准备签名包清单。真实短信/OAuth、OSS、推送供应商和部署密钥继续明确搁置，不阻塞本地开发。CS26 证据可重复后，再接入固定版本的 Knot 脚手架并沉淀更多能力。
