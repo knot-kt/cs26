@@ -33,6 +33,10 @@ fun Cs26App(
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
     onAddImage: () -> Unit,
+    chatState: ChatState,
+    onChatInputChanged: (String) -> Unit,
+    onConnectChat: () -> Unit,
+    onSendChat: () -> Unit,
 ) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -132,6 +136,34 @@ fun Cs26App(
                             text = "Post error: ${postState.error}",
                             color = MaterialTheme.colorScheme.error,
                         )
+                    }
+                    Text("Chat", style = MaterialTheme.typography.titleMedium)
+                    Button(
+                        onClick = onConnectChat,
+                        enabled = !chatState.isConnecting,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (chatState.isConnecting) "Connecting" else "Connect chat")
+                    }
+                    chatState.messages.forEach { message ->
+                        Text("${message.senderId}: ${message.content}")
+                    }
+                    OutlinedTextField(
+                        value = chatState.input,
+                        onValueChange = onChatInputChanged,
+                        label = { Text("Message") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = onSendChat,
+                        enabled = chatState.input.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Send")
+                    }
+                    if (chatState.error != null) {
+                        Text("Chat error: ${chatState.error}", color = MaterialTheme.colorScheme.error)
                     }
                     Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Text("Sign out")

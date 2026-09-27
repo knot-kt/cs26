@@ -14,11 +14,20 @@ import com.knotkt.cs26.shared.HealthRepository
 import com.knotkt.cs26.shared.HealthState
 import com.knotkt.cs26.shared.PostRepository
 import com.knotkt.cs26.shared.PostState
+import com.knotkt.cs26.shared.ChatRepository
+import com.knotkt.cs26.shared.ChatState
+import com.knotkt.cs26.contracts.ChatMessage
+import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
 import com.knotkt.cs26.contracts.MediaKind
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.header
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +35,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.util.UUID
 import kotlinx.serialization.json.Json
 
 class MainActivity : ComponentActivity() {
@@ -35,13 +48,18 @@ class MainActivity : ComponentActivity() {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
+        install(WebSockets)
     }
     private val healthRepository = HealthRepository(client, "http://10.0.2.2:8080")
     private val authRepository = AuthRepository(client, "http://10.0.2.2:8080")
     private val postRepository = PostRepository(client, "http://10.0.2.2:8080")
+    private val chatRepository = ChatRepository(client, "http://10.0.2.2:8080")
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
+    private var chatState by mutableStateOf(ChatState())
+    private var chatJob: Job? = null
+    private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) uploadImage(uri)
     }
@@ -63,6 +81,10 @@ class MainActivity : ComponentActivity() {
                 onPublishPost = ::publishPost,
                 onRefreshPosts = ::refreshPosts,
                 onAddImage = { imagePicker.launch("image/*") },
+                chatState = chatState,
+                onChatInputChanged = { input -> chatState = chatState.copy(input = input, error = null) },
+                onConnectChat = ::connectChat,
+                onSendChat = ::sendChat,
             )
         }
     }
@@ -143,6 +165,64 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun connectChat() {
+        val session = authState.session ?: return
+        chatJob?.cancel()
+        chatState = chatState.copy(isConnecting = true, error = null)
+        chatJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                try {
+                    val history = chatRepository.history(session.accessToken, chatState.conversationId)
+                    withContext(Dispatchers.Main) {
+                        chatState = chatState.copy(messages = history, isConnecting = false, error = null)
+                    }
+                    client.webSocket(
+                        urlString = "ws://10.0.2.2:8080/conversations/${chatState.conversationId}/stream",
+                        request = { header(io.ktor.http.HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
+                    ) {
+                        chatSession = this
+                        for (frame in incoming) {
+                            if (frame is Frame.Text) {
+                                val message = Json.decodeFromString<ChatMessage>(frame.readText())
+                                withContext(Dispatchers.Main) {
+                                    if (chatState.messages.none { it.id == message.id }) {
+                                        chatState = chatState.copy(messages = chatState.messages + message)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (error: Throwable) {
+                    withContext(Dispatchers.Main) {
+                        chatState = chatState.copy(isConnecting = false, error = error.message ?: "chat disconnected")
+                    }
+                } finally {
+                    chatSession = null
+                }
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun sendChat() {
+        val session = chatSession ?: run {
+            connectChat()
+            return
+        }
+        val input = chatState.input.trim()
+        if (input.isBlank()) return
+        val request = SendMessageRequest(UUID.randomUUID().toString(), input)
+        chatState = chatState.copy(input = "")
+        scope.launch(Dispatchers.IO) {
+            runCatching { session.send(Frame.Text(Json.encodeToString(request))) }
+                .onFailure { error ->
+                    withContext(Dispatchers.Main) {
+                        chatState = chatState.copy(input = input, error = error.message ?: "send failed")
+                    }
+                }
+        }
+    }
+
     private fun publishPost() {
         val session = authState.session ?: return
         val content = postState.content.trim()
@@ -192,6 +272,9 @@ class MainActivity : ComponentActivity() {
             }
             authState = AuthState(phone = authState.phone)
             postState = PostState()
+            chatJob?.cancel()
+            chatSession = null
+            chatState = ChatState()
         }
     }
 
