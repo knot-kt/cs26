@@ -13,6 +13,7 @@ import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import com.knotkt.cs26.contracts.MediaKind
 
 class ApplicationTest {
     @Test
@@ -94,10 +95,11 @@ class ApplicationTest {
         val create = client.post("/posts") {
             header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
             contentType(ContentType.Application.Json)
-            setBody("""{"content":"first post"}""")
+            setBody("""{"content":"first post","attachments":[{"kind":"IMAGE","objectKey":"posts/one.jpg","mimeType":"image/jpeg","sizeBytes":128}]}""")
         }
         assertEquals(HttpStatusCode.Created, create.status)
         assertEquals(true, create.bodyAsText().contains(session.userId))
+        assertEquals(true, create.bodyAsText().contains("posts/one.jpg"))
 
         val list = client.get("/posts") {
             header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")

@@ -109,7 +109,12 @@ fun Application.module(
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_content", "content must contain 1-2000 characters"))
                 return@post
             }
-            call.respond(HttpStatusCode.Created, postStore.create(session.userId, content))
+            val attachments = request.attachments
+            if (attachments.size > 9 || attachments.any { it.objectKey.isBlank() || it.sizeBytes < 0 }) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_media", "attachments are invalid"))
+                return@post
+            }
+            call.respond(HttpStatusCode.Created, postStore.create(session.userId, content, attachments))
         }
         get("/posts") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))
