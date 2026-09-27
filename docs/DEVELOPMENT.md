@@ -18,9 +18,9 @@ CS26 first delivers real, verifiable Android flows, then validates iOS, Desktop,
 2. Create `androidApp`, `shared`, `contracts`, and `server`, starting with a health-endpoint vertical slice.
 3. Implement auth, feed, chat, notices, and profile in slices; submit contracts, tests, and acceptance evidence together.
 
-M1 当前使用服务端内存假适配器和固定开发验证码 `123456` 验证端到端流程。它只用于本地开发和 CI，不代表真实短信验收；接入短信前必须增加哈希存储、过期、尝试次数和频率限制。
+M1 当前使用服务端内存假适配器和固定开发验证码 `123456` 验证端到端流程。适配器已包含验证码哈希、过期、五次尝试上限、重复发送冷却和会话撤销；它只用于本地开发和 CI，不代表真实短信验收。接入短信和 PostgreSQL 前仍需把这些边界迁移到持久化实现。
 
-M1 currently uses an in-memory server adapter and the fixed development code `123456` to verify the end-to-end flow. It is for local development and CI only, not real SMS acceptance; hashed storage, expiry, attempt limits, and rate limiting are required before SMS integration.
+M1 currently uses an in-memory server adapter and the fixed development code `123456` to verify the end-to-end flow. The adapter covers code hashing, expiry, a five-attempt limit, resend cooldown, and session revocation; it is for local development and CI only, not real SMS acceptance. These boundaries must move to persistent storage before SMS and PostgreSQL integration.
 4. Use fake/local adapters for SMS, OSS, ntfy, and other external dependencies; do not claim delivery before device validation.
 5. Extract to Knot only after real behavior is stable, then upgrade the dependency in a separate PR.
 
