@@ -43,7 +43,7 @@ class PostRepository(
         }
         .body()
 
-    suspend fun uploadImage(accessToken: String, bytes: ByteArray, mimeType: String): MediaUploadResponse = client
+    suspend fun uploadMedia(accessToken: String, bytes: ByteArray, mimeType: String): MediaUploadResponse = client
         .submitFormWithBinaryData("$baseUrl/media/upload", formData {
             append("file", bytes, io.ktor.http.Headers.build {
                 append(HttpHeaders.ContentType, mimeType)
@@ -53,4 +53,7 @@ class PostRepository(
             header(HttpHeaders.Authorization, "Bearer $accessToken")
         }
         .body()
+
+    suspend fun uploadImage(accessToken: String, bytes: ByteArray, mimeType: String): MediaUploadResponse =
+        uploadMedia(accessToken, bytes, mimeType)
 }

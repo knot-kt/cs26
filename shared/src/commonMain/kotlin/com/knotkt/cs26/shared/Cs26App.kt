@@ -37,6 +37,9 @@ fun Cs26App(
     onChatInputChanged: (String) -> Unit,
     onConnectChat: () -> Unit,
     onSendChat: () -> Unit,
+    onAddChatImage: () -> Unit,
+    onStartRecording: () -> Unit,
+    onStopRecording: () -> Unit,
     noticeState: NoticeState,
     onRefreshNotices: () -> Unit,
     onMarkNoticeRead: (String) -> Unit,
@@ -149,7 +152,12 @@ fun Cs26App(
                         Text(if (chatState.isConnecting) "Connecting" else "Connect chat")
                     }
                     chatState.messages.forEach { message ->
-                        Text("${message.senderId}: ${message.content}")
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text("${message.senderId}: ${message.content}")
+                            message.attachments.forEach { attachment ->
+                                Text("${attachment.kind}: ${attachment.objectKey} (${attachment.sizeBytes} bytes)")
+                            }
+                        }
                     }
                     OutlinedTextField(
                         value = chatState.input,
@@ -160,10 +168,28 @@ fun Cs26App(
                     )
                     Button(
                         onClick = onSendChat,
-                        enabled = chatState.input.isNotBlank(),
+                        enabled = (chatState.input.isNotBlank() || chatState.attachments.isNotEmpty()) &&
+                            !chatState.isUploading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Send")
+                    }
+                    Button(
+                        onClick = onAddChatImage,
+                        enabled = chatState.attachments.size < 9 && !chatState.isUploading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (chatState.isUploading) "Uploading" else "Add image")
+                    }
+                    Button(
+                        onClick = if (chatState.isRecording) onStopRecording else onStartRecording,
+                        enabled = !chatState.isUploading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (chatState.isRecording) "Stop recording" else "Record audio")
+                    }
+                    chatState.attachments.forEach { attachment ->
+                        Text("Pending ${attachment.kind}: ${attachment.objectKey} (${attachment.sizeBytes} bytes)")
                     }
                     if (chatState.error != null) {
                         Text("Chat error: ${chatState.error}", color = MaterialTheme.colorScheme.error)
