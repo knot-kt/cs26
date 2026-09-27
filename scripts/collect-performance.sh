@@ -5,10 +5,28 @@ package_name="${CS26_PERF_PACKAGE:-com.knotkt.cs26.android}"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 output_dir="${1:-docs/evidence/runs/performance-${timestamp}}"
 
-if ! command -v adb >/dev/null 2>&1; then
+adb_bin="${ADB:-}"
+if [[ -z "$adb_bin" ]] && command -v adb >/dev/null 2>&1; then
+  adb_bin="$(command -v adb)"
+fi
+if [[ -z "$adb_bin" && -n "${ANDROID_HOME:-}" && -x "$ANDROID_HOME/platform-tools/adb" ]]; then
+  adb_bin="$ANDROID_HOME/platform-tools/adb"
+fi
+if [[ -z "$adb_bin" && -n "${ANDROID_SDK_ROOT:-}" && -x "$ANDROID_SDK_ROOT/platform-tools/adb" ]]; then
+  adb_bin="$ANDROID_SDK_ROOT/platform-tools/adb"
+fi
+if [[ -z "$adb_bin" && -x "$HOME/Library/Android/sdk/platform-tools/adb" ]]; then
+  adb_bin="$HOME/Library/Android/sdk/platform-tools/adb"
+fi
+
+if [[ -z "$adb_bin" ]]; then
   echo "adb is required; install Android SDK platform-tools" >&2
   exit 1
 fi
+
+adb() {
+  "$adb_bin" "$@"
+}
 
 if [[ "$(adb get-state 2>/dev/null || true)" != "device" ]]; then
   echo "no authorized Android device or emulator is available" >&2

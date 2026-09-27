@@ -110,6 +110,23 @@ class ApplicationTest {
     }
 
     @Test
+    fun authenticatedUserCanCreateAttachmentOnlyPost() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+
+        val create = client.post("/posts") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody("""{"content":"","attachments":[{"kind":"IMAGE","objectKey":"posts/photo.jpg","mimeType":"image/jpeg","sizeBytes":128}]}""")
+        }
+
+        assertEquals(HttpStatusCode.Created, create.status)
+        assertEquals(true, create.bodyAsText().contains("posts/photo.jpg"))
+    }
+
+    @Test
     fun postsRequireAnActiveSession() = testApplication {
         application { module(InMemoryAuthService()) }
 

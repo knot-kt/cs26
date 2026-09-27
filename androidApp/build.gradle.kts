@@ -4,6 +4,10 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val cs26BaseUrl = providers.gradleProperty("cs26BaseUrl")
+    .orElse("http://10.0.2.2:8080")
+    .get()
+
 android {
     namespace = "com.knotkt.cs26.android"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -14,6 +18,11 @@ android {
         targetSdk = libs.versions.compileSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("String", "CS26_BASE_URL", "\"${cs26BaseUrl.replace("\"", "\\\"")}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 }
 

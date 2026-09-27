@@ -131,13 +131,16 @@ fun Application.module(
             }
             val request = call.receive<CreatePostRequest>()
             val content = request.content.trim()
-            if (content.isEmpty() || content.length > 2_000) {
-                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_content", "content must contain 1-2000 characters"))
-                return@post
-            }
             val attachments = request.attachments
             if (attachments.size > 9 || attachments.any { it.objectKey.isBlank() || it.sizeBytes < 0 }) {
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_media", "attachments are invalid"))
+                return@post
+            }
+            if ((content.isEmpty() && attachments.isEmpty()) || content.length > 2_000) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    AuthError("invalid_content", "content must contain 1-2000 characters or include an attachment"),
+                )
                 return@post
             }
             call.respond(HttpStatusCode.Created, postStore.create(session.userId, content, attachments))

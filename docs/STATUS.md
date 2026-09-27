@@ -6,22 +6,24 @@ Updated: 2026-09-27
 
 | Milestone | Status | Verified scope / 已验证范围 | Remaining / 剩余 |
 | --- | --- | --- | --- |
-| M0 | Complete / 完成 | Kotlin, Compose, Ktor, PostgreSQL migrations, CI and PR gate | Final task-sheet difference confirmation |
-| M1 | Foundation / 基础完成 | Local SMS flow, session lookup/revocation, PostgreSQL adapter | Real SMS, third-party auth, device credential storage |
-| M2 | In progress / 进行中 | Text feed, image picker, local upload, media metadata, like, comment, owner delete, Android interaction UI | OSS adapter, camera capture, detail/pagination evidence |
-| M3 | In progress / 进行中 | Message history, client-ID idempotency, WebSocket server/client, image/audio capture, authenticated playback | Delivery receipts, retry/missing-message evidence, device reconnect evidence |
-| M4 | In progress / 进行中 | Announcement records, unread/read sync, deep links, realtime stream, Android list | ntfy/UnifiedPush background delivery evidence |
-| M5 | Foundation / 基础完成 | Debug APK build, server distribution, package workflow, evidence template | Signed release, deployment runbook, performance measurements |
-| M6 | Preparation / 准备中 | Knot extraction gate and cross-repository policy | First reusable module and second rebuildable example |
+| M0 | Complete / 完成 | Kotlin/Compose/Ktor modules, PostgreSQL migrations, health endpoint, CI and PR gate; local checks pass | Final task-sheet difference confirmation |
+| M1 | Foundation / 基础完成 | Development SMS flow, session lookup/revocation, PostgreSQL auth adapter; real-device sign-in verified | Real SMS, third-party auth, secure device token storage (deferred, does not block local work) |
+| M2 | In progress / 进行中 | Text and attachment-only feed posts, picker/camera capture, local multipart upload, media metadata, like/comment/delete; Pixel 6 smoke test passed | OSS adapter and production bucket credentials (deferred), pagination/detail evidence |
+| M3 | In progress / 进行中 | History, client-ID idempotency, WebSocket server/client, image/audio capture, authenticated playback; real-device recording/upload passed | Delivery receipts, retry/missing-message evidence, two-device reconnect evidence |
+| M4 | In progress / 进行中 | Announcement records, unread/read sync, deep links, realtime stream, Android reconnect state; Pixel 6 online stream passed | ntfy/UnifiedPush background delivery and provider credentials (deferred) |
+| M5 | Foundation / 基础完成 | Debug APK, configurable device endpoint, server distribution, package workflow, performance capture script/template; APK installed on Pixel 6 | Signed release, deployment runbook, recorded performance report |
+| M6 | Preparation / 准备中 | Knot `IdempotencyCache` module and rebuildable demo merged with CI | `knot init` CLI, versioned CS26 integration, more reusable modules |
 
 ## Evidence / 证据
 
-Local verification uses JDK 21 and the installed Android SDK:
+Local verification uses JDK 21 and the installed Android SDK. The current physical-device build is:
 
 ```text
 ./gradlew :server:test
 ./gradlew check :androidApp:assembleDebug
 ./gradlew :server:installDist
+./gradlew :androidApp:assembleDebug -Pcs26BaseUrl=http://127.0.0.1:8080
+$HOME/Library/Android/sdk/platform-tools/adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ```
 
 Pull requests are required for both repositories. CS26 PR checks run the full JVM and Android checks; the tag/manual package workflow is intentionally separate to control the 2,000-minute organization budget.
@@ -30,6 +32,6 @@ Pull requests are required for both repositories. CS26 PR checks run the full JV
 
 ## Next slice / 下一切片
 
-Complete M2 provider/camera evidence and M3 reliability evidence, then validate M4 background delivery before signed packaging and performance records. Extract stable boundaries to Knot only after those records exist.
+Collect M3 retry/receipt/reconnect evidence, then capture a real-device performance record and signed-package checklist. Keep real SMS/OAuth, OSS, push provider and deployment credentials explicitly deferred. Extract stable boundaries to Knot only after the CS26 evidence is repeatable.
 
-先完成 M2 供应商/相机证据和 M3 可靠性证据，再验证 M4 后台送达，然后做签名安装包与性能记录。只有证据齐全后，才把稳定边界提取到 Knot。
+下一步先补 M3 重试/回执/重连证据，再采集真机性能记录和签名包清单。真实短信/OAuth、OSS、推送供应商和部署密钥继续明确搁置，不阻塞本地开发。CS26 证据可重复后，再沉淀更多 Knot 能力。
