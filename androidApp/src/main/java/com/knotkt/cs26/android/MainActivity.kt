@@ -1,6 +1,7 @@
 package com.knotkt.cs26.android
 
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
@@ -13,6 +14,8 @@ import com.knotkt.cs26.shared.HealthRepository
 import com.knotkt.cs26.shared.HealthState
 import com.knotkt.cs26.shared.PostRepository
 import com.knotkt.cs26.shared.PostState
+import com.knotkt.cs26.contracts.MediaAttachment
+import com.knotkt.cs26.contracts.MediaKind
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -39,6 +42,9 @@ class MainActivity : ComponentActivity() {
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
+    private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) uploadImage(uri)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +62,7 @@ class MainActivity : ComponentActivity() {
                 onPostContentChanged = { content -> postState = postState.copy(content = content, error = null) },
                 onPublishPost = ::publishPost,
                 onRefreshPosts = ::refreshPosts,
+                onAddImage = { imagePicker.launch("image/*") },
             )
         }
     }
@@ -142,11 +149,37 @@ class MainActivity : ComponentActivity() {
         postState = postState.copy(isPublishing = true, error = null)
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { postRepository.create(session.accessToken, content) }
+                withContext(Dispatchers.IO) { postRepository.create(session.accessToken, content, postState.attachments) }
             }
             postState = result.fold(
                 onSuccess = { post -> postState.copy(content = "", posts = listOf(post) + postState.posts, isPublishing = false) },
                 onFailure = { error -> postState.copy(isPublishing = false, error = error.message ?: "publish post failed") },
+            )
+        }
+    }
+
+    private fun uploadImage(uri: android.net.Uri) {
+        val session = authState.session ?: return
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return
+        val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+        postState = postState.copy(isUploading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.uploadImage(session.accessToken, bytes, mimeType) }
+            }
+            postState = result.fold(
+                onSuccess = { uploaded ->
+                    postState.copy(
+                        attachments = postState.attachments + MediaAttachment(
+                            kind = MediaKind.IMAGE,
+                            objectKey = uploaded.objectKey,
+                            mimeType = uploaded.mimeType,
+                            sizeBytes = uploaded.sizeBytes,
+                        ),
+                        isUploading = false,
+                    )
+                },
+                onFailure = { error -> postState.copy(isUploading = false, error = error.message ?: "upload failed") },
             )
         }
     }

@@ -3,6 +3,7 @@ package com.knotkt.cs26.server
 import com.knotkt.cs26.contracts.AuthError
 import com.knotkt.cs26.contracts.CreatePostRequest
 import com.knotkt.cs26.contracts.PostPage
+import com.knotkt.cs26.contracts.MediaUploadResponse
 import com.knotkt.cs26.contracts.RequestCodeRequest
 import com.knotkt.cs26.contracts.VerifyCodeRequest
 import io.ktor.http.HttpStatusCode
@@ -15,6 +16,10 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveMultipart
+import io.ktor.http.content.PartData
+import io.ktor.http.content.forEachPart
+import io.ktor.util.cio.toByteArray
 import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
@@ -31,6 +36,7 @@ fun Application.module() = module(
 fun Application.module(
     authService: AuthService,
     postStore: PostStore = InMemoryPostStore(),
+    mediaStorage: MediaStorage = LocalMediaStorage(),
 ) {
     install(ContentNegotiation) {
         json()
@@ -124,6 +130,29 @@ fun Application.module(
             }
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
             call.respond(PostPage(postStore.list(limit)))
+        }
+        post("/media/upload") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            if (token == null || authService.findSession(token) == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@post
+            }
+            var bytes: ByteArray? = null
+            var mimeType = "application/octet-stream"
+            call.receiveMultipart().forEachPart { part ->
+                if (part is PartData.FileItem && bytes == null) {
+                    mimeType = part.contentType?.toString() ?: mimeType
+                    bytes = part.provider().toByteArray()
+                }
+                part.dispose.invoke()
+            }
+            val payload = bytes
+            if (payload == null || payload.isEmpty() || payload.size > 10 * 1024 * 1024) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_media", "file must be between 1 byte and 10 MiB"))
+                return@post
+            }
+            val stored = mediaStorage.store(payload, mimeType)
+            call.respond(MediaUploadResponse(stored.objectKey, stored.mimeType, stored.sizeBytes))
         }
     }
 }
