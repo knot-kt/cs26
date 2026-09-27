@@ -1,6 +1,8 @@
 package com.knotkt.cs26.server
 
 import com.knotkt.cs26.contracts.AuthError
+import com.knotkt.cs26.contracts.CreatePostRequest
+import com.knotkt.cs26.contracts.PostPage
 import com.knotkt.cs26.contracts.RequestCodeRequest
 import com.knotkt.cs26.contracts.VerifyCodeRequest
 import io.ktor.http.HttpStatusCode
@@ -26,7 +28,10 @@ fun Application.module() = module(
         ?: InMemoryAuthService(),
 )
 
-fun Application.module(authService: AuthService) {
+fun Application.module(
+    authService: AuthService,
+    postStore: PostStore = InMemoryPostStore(),
+) {
     install(ContentNegotiation) {
         json()
     }
@@ -91,8 +96,36 @@ fun Application.module(authService: AuthService) {
                 call.respond(session)
             }
         }
+        post("/posts") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@post
+            }
+            val request = call.receive<CreatePostRequest>()
+            val content = request.content.trim()
+            if (content.isEmpty() || content.length > 2_000) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_content", "content must contain 1-2000 characters"))
+                return@post
+            }
+            call.respond(HttpStatusCode.Created, postStore.create(session.userId, content))
+        }
+        get("/posts") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            if (token == null || authService.findSession(token) == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@get
+            }
+            val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
+            call.respond(PostPage(postStore.list(limit)))
+        }
     }
 }
+
+private fun bearerToken(header: String?): String? = header
+    ?.removePrefix("Bearer ")
+    ?.takeIf { it.isNotBlank() }
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = { module() }).start(wait = true)

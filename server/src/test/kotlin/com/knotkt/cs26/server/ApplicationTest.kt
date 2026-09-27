@@ -83,4 +83,35 @@ class ApplicationTest {
         repeat(5) { assertNull(service.verifyCode(phone, "000000")) }
         assertNull(service.verifyCode(phone, "123456"))
     }
+
+    @Test
+    fun authenticatedUserCanCreateAndListPosts() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+
+        val create = client.post("/posts") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody("""{"content":"first post"}""")
+        }
+        assertEquals(HttpStatusCode.Created, create.status)
+        assertEquals(true, create.bodyAsText().contains(session.userId))
+
+        val list = client.get("/posts") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }
+        assertEquals(HttpStatusCode.OK, list.status)
+        assertEquals(true, list.bodyAsText().contains("first post"))
+    }
+
+    @Test
+    fun postsRequireAnActiveSession() = testApplication {
+        application { module(InMemoryAuthService()) }
+
+        val response = client.get("/posts")
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
 }
