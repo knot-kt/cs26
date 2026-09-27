@@ -32,6 +32,7 @@ fun Cs26App(
     onPostContentChanged: (String) -> Unit,
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
+    onAddImage: () -> Unit,
 ) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -90,10 +91,21 @@ fun Cs26App(
                     )
                     Button(
                         onClick = onPublishPost,
-                        enabled = postState.content.isNotBlank() && !postState.isPublishing,
+                        enabled = (postState.content.isNotBlank() || postState.attachments.isNotEmpty()) &&
+                            !postState.isPublishing && !postState.isUploading,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (postState.isPublishing) "Publishing" else "Publish")
+                    }
+                    Button(
+                        onClick = onAddImage,
+                        enabled = postState.attachments.size < 9 && !postState.isUploading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (postState.isUploading) "Uploading" else "Add image")
+                    }
+                    postState.attachments.forEach { attachment ->
+                        Text("Attached ${attachment.objectKey} (${attachment.sizeBytes} bytes)")
                     }
                     Button(
                         onClick = onRefreshPosts,

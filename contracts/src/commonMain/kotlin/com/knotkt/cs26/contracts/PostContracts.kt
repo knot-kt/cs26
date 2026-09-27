@@ -24,6 +24,13 @@ data class MediaAttachment(
 )
 
 @Serializable
+data class MediaUploadResponse(
+    val objectKey: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+)
+
+@Serializable
 data class Post(
     val id: String,
     val authorId: String,
