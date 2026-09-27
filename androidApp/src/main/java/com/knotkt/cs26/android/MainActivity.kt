@@ -1,5 +1,8 @@
 package com.knotkt.cs26.android
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.MediaRecorder
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
@@ -40,6 +43,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import java.io.File
 import java.util.UUID
 import kotlinx.serialization.json.Json
 
@@ -64,8 +68,17 @@ class MainActivity : ComponentActivity() {
     private var noticeState by mutableStateOf(NoticeState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var recordingFile: File? = null
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) uploadImage(uri)
+    }
+    private val chatImagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) uploadChatImage(uri)
+    }
+    private val audioPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startRecordingInternal()
+        else chatState = chatState.copy(error = "Microphone permission is required to record audio")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,6 +102,9 @@ class MainActivity : ComponentActivity() {
                 onChatInputChanged = { input -> chatState = chatState.copy(input = input, error = null) },
                 onConnectChat = ::connectChat,
                 onSendChat = ::sendChat,
+                onAddChatImage = { chatImagePicker.launch("image/*") },
+                onStartRecording = ::startRecording,
+                onStopRecording = ::stopRecording,
                 noticeState = noticeState,
                 onRefreshNotices = ::refreshNotices,
                 onMarkNoticeRead = ::markNoticeRead,
@@ -218,14 +234,18 @@ class MainActivity : ComponentActivity() {
             return
         }
         val input = chatState.input.trim()
-        if (input.isBlank()) return
-        val request = SendMessageRequest(UUID.randomUUID().toString(), input)
-        chatState = chatState.copy(input = "")
+        if (input.isBlank() && chatState.attachments.isEmpty()) return
+        val request = SendMessageRequest(UUID.randomUUID().toString(), input, chatState.attachments)
+        chatState = chatState.copy(input = "", attachments = emptyList())
         scope.launch(Dispatchers.IO) {
             runCatching { session.send(Frame.Text(Json.encodeToString(request))) }
                 .onFailure { error ->
                     withContext(Dispatchers.Main) {
-                        chatState = chatState.copy(input = input, error = error.message ?: "send failed")
+                        chatState = chatState.copy(
+                            input = input,
+                            attachments = request.attachments,
+                            error = error.message ?: "send failed",
+                        )
                     }
                 }
         }
@@ -297,6 +317,101 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun uploadChatImage(uri: android.net.Uri) {
+        val session = authState.session ?: return
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return
+        val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+        chatState = chatState.copy(isUploading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.uploadMedia(session.accessToken, bytes, mimeType) }
+            }
+            chatState = result.fold(
+                onSuccess = { uploaded ->
+                    chatState.copy(
+                        attachments = chatState.attachments + MediaAttachment(
+                            kind = MediaKind.IMAGE,
+                            objectKey = uploaded.objectKey,
+                            mimeType = uploaded.mimeType,
+                            sizeBytes = uploaded.sizeBytes,
+                        ),
+                        isUploading = false,
+                    )
+                },
+                onFailure = { error -> chatState.copy(isUploading = false, error = error.message ?: "chat image upload failed") },
+            )
+        }
+    }
+
+    private fun startRecording() {
+        if (mediaRecorder != null) return
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        startRecordingInternal()
+    }
+
+    private fun startRecordingInternal() {
+        if (mediaRecorder != null) return
+        val file = File.createTempFile("cs26-chat-", ".m4a", cacheDir)
+        val recorder = MediaRecorder(this).apply {
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            setOutputFile(file.absolutePath)
+            prepare()
+            start()
+        }
+        recordingFile = file
+        mediaRecorder = recorder
+        chatState = chatState.copy(isRecording = true, error = null)
+    }
+
+    private fun stopRecording() {
+        val recorder = mediaRecorder ?: return
+        val file = recordingFile
+        mediaRecorder = null
+        recordingFile = null
+        chatState = chatState.copy(isRecording = false)
+        runCatching { recorder.stop() }
+            .onFailure { error ->
+                recorder.release()
+                file?.delete()
+                chatState = chatState.copy(error = error.message ?: "recording was too short")
+            }
+            .onSuccess {
+                recorder.release()
+                if (file != null) uploadChatAudio(file)
+            }
+    }
+
+    private fun uploadChatAudio(file: File) {
+        val session = authState.session ?: return
+        chatState = chatState.copy(isUploading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+                withContext(Dispatchers.IO) { postRepository.uploadMedia(session.accessToken, bytes, "audio/mp4") }
+            }
+            file.delete()
+            chatState = result.fold(
+                onSuccess = { uploaded ->
+                    chatState.copy(
+                        attachments = chatState.attachments + MediaAttachment(
+                            kind = MediaKind.AUDIO,
+                            objectKey = uploaded.objectKey,
+                            mimeType = uploaded.mimeType,
+                            sizeBytes = uploaded.sizeBytes,
+                        ),
+                        isUploading = false,
+                    )
+                },
+                onFailure = { error -> chatState.copy(isUploading = false, error = error.message ?: "audio upload failed") },
+            )
+        }
+    }
+
     private fun logout() {
         val session = authState.session ?: return
         scope.launch {
@@ -313,6 +428,12 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        mediaRecorder?.let { recorder ->
+            runCatching { recorder.stop() }
+            recorder.release()
+        }
+        mediaRecorder = null
+        recordingFile?.delete()
         client.close()
         scope.cancel()
         super.onDestroy()
