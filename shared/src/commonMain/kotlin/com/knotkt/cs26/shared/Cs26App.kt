@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -27,6 +28,10 @@ fun Cs26App(
     onRequestCode: () -> Unit,
     onVerifyCode: () -> Unit,
     onLogout: () -> Unit,
+    postState: PostState,
+    onPostContentChanged: (String) -> Unit,
+    onPublishPost: () -> Unit,
+    onRefreshPosts: () -> Unit,
 ) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -73,6 +78,49 @@ fun Cs26App(
                 }
                 if (authState.session != null) {
                     Text("Signed in as ${authState.session.userId}")
+                    Text("Activity", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = postState.content,
+                        onValueChange = onPostContentChanged,
+                        label = { Text("Share an update") },
+                        minLines = 3,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 120.dp),
+                    )
+                    Button(
+                        onClick = onPublishPost,
+                        enabled = postState.content.isNotBlank() && !postState.isPublishing,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (postState.isPublishing) "Publishing" else "Publish")
+                    }
+                    Button(
+                        onClick = onRefreshPosts,
+                        enabled = !postState.isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (postState.isLoading) "Refreshing" else "Refresh activity")
+                    }
+                    postState.posts.forEach { post ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                        ) {
+                            Text(post.content)
+                            Text(
+                                text = "${post.authorId} · ${post.createdAtEpochMillis}",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                    if (postState.error != null) {
+                        Text(
+                            text = "Post error: ${postState.error}",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Text("Sign out")
                     }
