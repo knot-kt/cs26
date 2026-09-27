@@ -11,6 +11,8 @@ import com.knotkt.cs26.shared.AuthRepository
 import com.knotkt.cs26.shared.AuthState
 import com.knotkt.cs26.shared.HealthRepository
 import com.knotkt.cs26.shared.HealthState
+import com.knotkt.cs26.shared.PostRepository
+import com.knotkt.cs26.shared.PostState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -33,8 +35,10 @@ class MainActivity : ComponentActivity() {
     }
     private val healthRepository = HealthRepository(client, "http://10.0.2.2:8080")
     private val authRepository = AuthRepository(client, "http://10.0.2.2:8080")
+    private val postRepository = PostRepository(client, "http://10.0.2.2:8080")
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
+    private var postState by mutableStateOf(PostState())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +52,10 @@ class MainActivity : ComponentActivity() {
                 onRequestCode = ::requestCode,
                 onVerifyCode = ::verifyCode,
                 onLogout = ::logout,
+                postState = postState,
+                onPostContentChanged = { content -> postState = postState.copy(content = content, error = null) },
+                onPublishPost = ::publishPost,
+                onRefreshPosts = ::refreshPosts,
             )
         }
     }
@@ -110,6 +118,36 @@ class MainActivity : ComponentActivity() {
                     )
                 },
             )
+            if (result.isSuccess) refreshPosts()
+        }
+    }
+
+    private fun refreshPosts() {
+        val session = authState.session ?: return
+        postState = postState.copy(isLoading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.list(session.accessToken) }
+            }
+            postState = result.fold(
+                onSuccess = { posts -> postState.copy(posts = posts, isLoading = false) },
+                onFailure = { error -> postState.copy(isLoading = false, error = error.message ?: "load posts failed") },
+            )
+        }
+    }
+
+    private fun publishPost() {
+        val session = authState.session ?: return
+        val content = postState.content.trim()
+        postState = postState.copy(isPublishing = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.create(session.accessToken, content) }
+            }
+            postState = result.fold(
+                onSuccess = { post -> postState.copy(content = "", posts = listOf(post) + postState.posts, isPublishing = false) },
+                onFailure = { error -> postState.copy(isPublishing = false, error = error.message ?: "publish post failed") },
+            )
         }
     }
 
@@ -120,6 +158,7 @@ class MainActivity : ComponentActivity() {
                 withContext(Dispatchers.IO) { authRepository.logout(session.accessToken) }
             }
             authState = AuthState(phone = authState.phone)
+            postState = PostState()
         }
     }
 
