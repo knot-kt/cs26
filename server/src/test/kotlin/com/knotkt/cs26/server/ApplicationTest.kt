@@ -144,4 +144,30 @@ class ApplicationTest {
             header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
         }.status)
     }
+
+    @Test
+    fun messageRetriesAreIdempotentAndHistoryIsOrdered() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+        val body = """{"clientMessageId":"client-1","content":"hello"}"""
+        val first = client.post("/conversations/demo/messages") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        val retry = client.post("/conversations/demo/messages") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }
+        assertEquals(HttpStatusCode.Created, first.status)
+        assertEquals(first.bodyAsText(), retry.bodyAsText())
+        val history = client.get("/conversations/demo/messages") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }
+        assertEquals(HttpStatusCode.OK, history.status)
+        assertEquals(1, Regex("clientMessageId").findAll(history.bodyAsText()).count())
+    }
 }
