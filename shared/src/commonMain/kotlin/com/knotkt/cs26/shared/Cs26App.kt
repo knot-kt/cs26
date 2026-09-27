@@ -10,10 +10,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Tab
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -96,6 +102,21 @@ fun Cs26App(
                 }
                 if (authState.session != null) {
                     Text("Signed in as ${authState.session.userId}")
+                    var selectedTab by rememberSaveable { mutableStateOf(0) }
+                    PrimaryTabRow(
+                        selectedTabIndex = selectedTab,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        listOf("Activity", "Chat", "Notices", "Me").forEachIndexed { index, label ->
+                            Tab(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                text = { Text(label) },
+                            )
+                        }
+                    }
+                    when (selectedTab) {
+                        0 -> {
                     Text("Activity", style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(
                         value = postState.content,
@@ -195,6 +216,8 @@ fun Cs26App(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                        }
+                        1 -> {
                     Text("Chat", style = MaterialTheme.typography.titleMedium)
                     Button(
                         onClick = onConnectChat,
@@ -251,6 +274,8 @@ fun Cs26App(
                     if (chatState.error != null) {
                         Text("Chat error: ${chatState.error}", color = MaterialTheme.colorScheme.error)
                     }
+                        }
+                        2 -> {
                     Text("Notifications", style = MaterialTheme.typography.titleMedium)
                     Button(
                         onClick = onRefreshNotices,
@@ -278,8 +303,15 @@ fun Cs26App(
                     if (noticeState.error != null) {
                         Text("Notification error: ${noticeState.error}", color = MaterialTheme.colorScheme.error)
                     }
-                    Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-                        Text("Sign out")
+                        }
+                        3 -> {
+                            Text("Profile", style = MaterialTheme.typography.titleMedium)
+                            Text("User ID: ${authState.session.userId}")
+                            Text("Session and account settings")
+                            Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                                Text("Sign out")
+                            }
+                        }
                     }
                 }
                 if (authState.error != null) {
