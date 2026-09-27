@@ -237,6 +237,50 @@ class ApplicationTest {
     }
 
     @Test
+    fun websocketReconnectResendsPendingMessageWithoutDuplicatingHistory() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+        val wsClient = createClient {
+            install(WebSockets)
+        }
+        val body = """{"clientMessageId":"reconnect-client-1","content":"after reconnect"}"""
+        var firstMessageId: String? = null
+
+        wsClient.webSocket(
+            path = "/conversations/demo/stream",
+            request = { header(HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
+        ) {
+            send(Frame.Text(body))
+            firstMessageId = (Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Message).message.id
+            Json.decodeFromString<ChatStreamEvent>((incoming.receive() as Frame.Text).readText())
+        }
+
+        wsClient.webSocket(
+            path = "/conversations/demo/stream",
+            request = { header(HttpHeaders.Authorization, "Bearer ${session.accessToken}") },
+        ) {
+            send(Frame.Text(body))
+            val retryMessage = Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Message
+            val retryReceipt = Json.decodeFromString<ChatStreamEvent>(
+                (incoming.receive() as Frame.Text).readText(),
+            ) as ChatStreamEvent.Receipt
+            assertEquals(firstMessageId, retryMessage.message.id)
+            assertEquals(firstMessageId, retryReceipt.messageId)
+        }
+
+        val history = client.get("/conversations/demo/messages") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }
+        assertEquals(1, Regex("reconnect-client-1").findAll(history.bodyAsText()).count())
+    }
+
+    @Test
     fun announcementsSyncAndReadStateAreUserScoped() = testApplication {
         val authService = InMemoryAuthService()
         application { module(authService) }

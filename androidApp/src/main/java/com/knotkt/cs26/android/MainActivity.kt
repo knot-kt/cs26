@@ -294,6 +294,9 @@ class MainActivity : ComponentActivity() {
         chatState = chatState.copy(isConnecting = true, isConnected = false, error = null)
         chatJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
+                withContext(Dispatchers.Main) {
+                    chatState = chatState.copy(isConnecting = true, isConnected = false)
+                }
                 try {
                     val history = chatRepository.history(session.accessToken, chatState.conversationId)
                     withContext(Dispatchers.Main) {
@@ -338,7 +341,7 @@ class MainActivity : ComponentActivity() {
                 } catch (error: Throwable) {
                     withContext(Dispatchers.Main) {
                         chatState = chatState.copy(
-                            isConnecting = false,
+                            isConnecting = isActive,
                             isConnected = false,
                             error = error.message ?: "chat disconnected",
                         )
@@ -346,7 +349,7 @@ class MainActivity : ComponentActivity() {
                 } finally {
                     chatSession = null
                     withContext(Dispatchers.Main) {
-                        chatState = chatState.copy(isConnected = false)
+                        chatState = chatState.copy(isConnected = false, isConnecting = isActive)
                     }
                 }
                 delay(1_000)
