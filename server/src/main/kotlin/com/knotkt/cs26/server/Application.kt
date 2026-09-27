@@ -28,6 +28,7 @@ import io.ktor.util.cio.toByteArray
 import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
+import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.get
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.post
@@ -217,6 +218,17 @@ fun Application.module(
             }
             val stored = mediaStorage.store(payload, mimeType)
             call.respond(MediaUploadResponse(stored.objectKey, stored.mimeType, stored.sizeBytes))
+        }
+        get("/media/{path...}") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            if (token == null || authService.findSession(token) == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@get
+            }
+            val objectKey = "uploads/" + call.parameters.getAll("path").orEmpty().joinToString("/")
+            val media = mediaStorage.load(objectKey)
+            if (media == null) call.respond(HttpStatusCode.NotFound, AuthError("media_not_found", "media is missing"))
+            else call.respondBytes(media.bytes, io.ktor.http.ContentType.parse(media.mimeType))
         }
         post("/conversations/{id}/messages") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))

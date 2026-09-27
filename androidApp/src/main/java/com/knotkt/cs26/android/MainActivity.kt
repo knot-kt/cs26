@@ -3,6 +3,7 @@ package com.knotkt.cs26.android
 import android.Manifest
 import android.content.pm.PackageManager
 import android.media.MediaRecorder
+import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private var mediaRecorder: MediaRecorder? = null
     private var recordingFile: File? = null
+    private var audioPlayer: MediaPlayer? = null
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) uploadImage(uri)
     }
@@ -111,6 +113,7 @@ class MainActivity : ComponentActivity() {
                 onConnectChat = ::connectChat,
                 onSendChat = ::sendChat,
                 onAddChatImage = { chatImagePicker.launch("image/*") },
+                onPlayAudio = ::playAudio,
                 onStartRecording = ::startRecording,
                 onStopRecording = ::stopRecording,
                 noticeState = noticeState,
@@ -497,6 +500,39 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun playAudio(objectKey: String) {
+        val session = authState.session ?: return
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val bytes = postRepository.downloadMedia(session.accessToken, objectKey)
+                    File.createTempFile("cs26-playback-", ".m4a", cacheDir).also { it.writeBytes(bytes) }
+                }
+            }
+            result.onSuccess { file ->
+                audioPlayer?.release()
+                audioPlayer = MediaPlayer().apply {
+                    setDataSource(file.absolutePath)
+                    setOnCompletionListener {
+                        release()
+                        if (audioPlayer === this) audioPlayer = null
+                        file.delete()
+                    }
+                    setOnErrorListener { player, _, _ ->
+                        player.release()
+                        if (audioPlayer === player) audioPlayer = null
+                        file.delete()
+                        true
+                    }
+                    prepare()
+                    start()
+                }
+            }.onFailure { error ->
+                chatState = chatState.copy(error = error.message ?: "audio playback failed")
+            }
+        }
+    }
+
     private fun logout() {
         val session = authState.session ?: return
         scope.launch {
@@ -519,6 +555,8 @@ class MainActivity : ComponentActivity() {
         }
         mediaRecorder = null
         recordingFile?.delete()
+        audioPlayer?.release()
+        audioPlayer = null
         client.close()
         scope.cancel()
         super.onDestroy()

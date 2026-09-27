@@ -11,8 +11,15 @@ data class StoredMedia(
     val sizeBytes: Long,
 )
 
+data class MediaPayload(
+    val bytes: ByteArray,
+    val mimeType: String,
+)
+
 interface MediaStorage {
     fun store(bytes: ByteArray, mimeType: String): StoredMedia
+
+    fun load(objectKey: String): MediaPayload?
 }
 
 class LocalMediaStorage(
@@ -25,5 +32,14 @@ class LocalMediaStorage(
         val destination = root.resolve(objectKey.removePrefix("uploads/"))
         Files.write(destination, bytes, StandardOpenOption.CREATE_NEW)
         return StoredMedia(objectKey, mimeType, bytes.size.toLong())
+    }
+
+    override fun load(objectKey: String): MediaPayload? {
+        if (!objectKey.startsWith("uploads/") || objectKey.contains("..")) return null
+        val normalizedRoot = root.toAbsolutePath().normalize()
+        val destination = root.resolve(objectKey.removePrefix("uploads/")).toAbsolutePath().normalize()
+        if (!destination.startsWith(normalizedRoot) || !Files.isRegularFile(destination)) return null
+        val mimeType = Files.probeContentType(destination) ?: "application/octet-stream"
+        return MediaPayload(Files.readAllBytes(destination), mimeType)
     }
 }
