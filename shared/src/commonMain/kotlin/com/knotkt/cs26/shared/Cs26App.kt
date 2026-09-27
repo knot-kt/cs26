@@ -226,8 +226,9 @@ fun Cs26App(
                     ) {
                         Text(
                             when {
-                                chatState.isConnecting -> "Connecting"
                                 chatState.isConnected -> "Connected"
+                                chatState.isConnecting && chatState.error != null -> "Reconnecting"
+                                chatState.isConnecting -> "Connecting"
                                 else -> "Connect chat"
                             },
                         )
