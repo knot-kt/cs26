@@ -36,6 +36,10 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 ./gradlew :server:test
 ```
 
+本地 PostgreSQL profile 使用 `CS26_DATABASE_URL`、`CS26_DATABASE_USER` 和 `CS26_DATABASE_PASSWORD`；先执行 `server/src/main/resources/db/migration/V1__auth.sql`。未配置这些变量时，服务端继续使用内存适配器，适合快速测试。
+
+The local PostgreSQL profile uses `CS26_DATABASE_URL`, `CS26_DATABASE_USER`, and `CS26_DATABASE_PASSWORD`; apply `server/src/main/resources/db/migration/V1__auth.sql` first. Without these variables, the server keeps using the in-memory adapter for fast tests.
+
 当前基线使用 JDK 21、Gradle 9.3.1 Wrapper、AGP 9.1.0、Kotlin 2.3.21、Ktor 3.6.0 和 Android API 35。AGP 9 的 KMP 共享模块使用 `com.android.kotlin.multiplatform.library`，Android 应用入口保持独立。JDK 21 是本机和 CI 的统一工具链，满足 AGP 9 的 JDK 17 最低要求。
 
 The current baseline uses JDK 21, the Gradle 9.3.1 Wrapper, AGP 9.1.0, Kotlin 2.3.21, Ktor 3.6.0, and Android API 35. KMP shared modules use `com.android.kotlin.multiplatform.library` with AGP 9, while the Android application entry point remains separate. JDK 21 is the shared local and CI toolchain and satisfies AGP 9's JDK 17 minimum.

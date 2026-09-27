@@ -63,6 +63,8 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 
 服务端 health endpoint 为 `GET /health`，开发认证接口为 `POST /auth/code/request`、`POST /auth/code/verify` 和 Bearer Token 退出接口 `POST /auth/logout`。固定开发验证码为 `123456`，适配器已验证过期、尝试次数、重复发送冷却和会话撤销边界。Android 启动页已使用 Compose 渲染，并通过 Ktor Client 检查本机服务；模拟器访问宿主机使用 `10.0.2.2`。开发认证接口不能用于生产；生产部署尚未开始，任何示例配置都不得包含真实密钥。
 
+服务端默认使用内存存储；设置 `CS26_DATABASE_URL`、`CS26_DATABASE_USER` 和 `CS26_DATABASE_PASSWORD` 后使用 PostgreSQL 存储。启动前先执行 `server/src/main/resources/db/migration/V1__auth.sql`，凭据只放在本地环境或 GitHub Environment。
+
 ## 毕设与长期维护
 
 毕业设计需求和证据保存在本仓库；可复用能力及通用工程约定逐步沉淀到 Knot。正式开源发布前确定许可证。

@@ -70,10 +70,10 @@ class InMemoryAuthService(
 
         store.removeChallenge(normalizedPhone)
         val session = AuthSession(
-            userId = "dev-$normalizedPhone",
+            userId = UUID.nameUUIDFromBytes(normalizedPhone.toByteArray()).toString(),
             accessToken = "dev-${UUID.randomUUID()}",
         )
-        store.saveSession(session)
+        store.saveSession(normalizedPhone, session)
         return session
     }
 
