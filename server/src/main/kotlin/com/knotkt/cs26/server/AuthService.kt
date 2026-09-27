@@ -5,7 +5,6 @@ import com.knotkt.cs26.contracts.RequestCodeResponse
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 
 data class CodeRequestResult(
     val response: RequestCodeResponse,
@@ -24,23 +23,16 @@ interface AuthService {
  * Development-only authentication adapter. Replace it with the SMS-backed implementation before
  * enabling production authentication.
  */
-class InMemoryAuthService : AuthService {
-    private data class Challenge(
-        val codeHash: ByteArray,
-        val expiresAtMillis: Long,
-        val resendAvailableAtMillis: Long,
-        var attemptsRemaining: Int,
-    )
-
-    private val challenges = ConcurrentHashMap<String, Challenge>()
-    private val sessions = ConcurrentHashMap<String, AuthSession>()
+class InMemoryAuthService(
+    private val store: AuthStore = InMemoryAuthStore(),
+) : AuthService {
 
     override fun requestCode(phone: String): CodeRequestResult? {
         val normalizedPhone = normalizePhone(phone)
         if (normalizedPhone.length < MIN_PHONE_DIGITS) return null
 
         val now = System.currentTimeMillis()
-        val existing = challenges[normalizedPhone]
+        val existing = store.findChallenge(normalizedPhone)
         if (existing != null && existing.resendAvailableAtMillis > now) {
             return CodeRequestResult(
                 response = response(),
@@ -48,12 +40,12 @@ class InMemoryAuthService : AuthService {
             )
         }
 
-        challenges[normalizedPhone] = Challenge(
+        store.saveChallenge(normalizedPhone, StoredChallenge(
             codeHash = hashCode(normalizedPhone, DEVELOPMENT_CODE),
             expiresAtMillis = System.currentTimeMillis() + CODE_TTL_MILLIS,
             resendAvailableAtMillis = now + RESEND_COOLDOWN_MILLIS,
             attemptsRemaining = MAX_ATTEMPTS,
-        )
+        ))
         return CodeRequestResult(
             response = response(),
         )
@@ -61,9 +53,9 @@ class InMemoryAuthService : AuthService {
 
     override fun verifyCode(phone: String, code: String): AuthSession? {
         val normalizedPhone = normalizePhone(phone)
-        val challenge = challenges[normalizedPhone] ?: return null
+        val challenge = store.findChallenge(normalizedPhone) ?: return null
         if (challenge.expiresAtMillis < System.currentTimeMillis()) {
-            challenges.remove(normalizedPhone)
+            store.removeChallenge(normalizedPhone)
             return null
         }
         val matches = MessageDigest.isEqual(
@@ -71,21 +63,21 @@ class InMemoryAuthService : AuthService {
             hashCode(normalizedPhone, code),
         )
         if (!matches) {
-            challenge.attemptsRemaining -= 1
-            if (challenge.attemptsRemaining <= 0) challenges.remove(normalizedPhone)
+            val attemptsRemaining = store.decrementAttempts(normalizedPhone)
+            if (attemptsRemaining != null && attemptsRemaining <= 0) store.removeChallenge(normalizedPhone)
             return null
         }
 
-        challenges.remove(normalizedPhone)
+        store.removeChallenge(normalizedPhone)
         val session = AuthSession(
             userId = "dev-$normalizedPhone",
             accessToken = "dev-${UUID.randomUUID()}",
         )
-        sessions[session.accessToken] = session
+        store.saveSession(session)
         return session
     }
 
-    override fun logout(accessToken: String): Boolean = sessions.remove(accessToken) != null
+    override fun logout(accessToken: String): Boolean = store.revokeSession(accessToken)
 
     private fun response() = RequestCodeResponse(
         expiresInSeconds = CODE_TTL_MILLIS.toInt() / 1_000,
