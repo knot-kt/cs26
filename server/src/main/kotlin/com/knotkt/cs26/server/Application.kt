@@ -5,6 +5,8 @@ import com.knotkt.cs26.contracts.CreatePostRequest
 import com.knotkt.cs26.contracts.CreateCommentRequest
 import com.knotkt.cs26.contracts.MessagePage
 import com.knotkt.cs26.contracts.SendMessageRequest
+import com.knotkt.cs26.contracts.CreateAnnouncementRequest
+import com.knotkt.cs26.contracts.NoticePage
 import com.knotkt.cs26.contracts.PostPage
 import com.knotkt.cs26.contracts.MediaUploadResponse
 import com.knotkt.cs26.contracts.RequestCodeRequest
@@ -50,6 +52,7 @@ fun Application.module(
     mediaStorage: MediaStorage = LocalMediaStorage(),
     chatStore: ChatStore = InMemoryChatStore(),
     chatHub: ChatHub = ChatHub(),
+    noticeStore: NoticeStore = InMemoryNoticeStore(),
 ) {
     install(ContentNegotiation) {
         json()
@@ -245,6 +248,43 @@ fun Application.module(
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
                     call.respond(MessagePage(chatStore.list(conversationId, limit)))
                 }
+            }
+        }
+        post("/announcements") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            if (token == null || authService.findSession(token) == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@post
+            }
+            val request = call.receive<CreateAnnouncementRequest>()
+            val title = request.title.trim()
+            val body = request.body.trim()
+            if (title.isEmpty() || title.length > 200 || body.isEmpty() || body.length > 10_000) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_notice", "announcement fields are invalid"))
+            } else {
+                call.respond(HttpStatusCode.Created, noticeStore.publish(title, body, request.deepLink))
+            }
+        }
+        get("/notifications") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
+                call.respond(NoticePage(noticeStore.list(session.userId, limit)))
+            }
+        }
+        post("/notifications/{id}/read") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val noticeId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (noticeId == null || !noticeStore.markRead(session.userId, noticeId)) {
+                call.respond(HttpStatusCode.NotFound, AuthError("notice_not_found", "notification does not exist"))
+            } else {
+                call.respond(HttpStatusCode.NoContent)
             }
         }
         webSocket("/conversations/{id}/stream") {

@@ -170,4 +170,26 @@ class ApplicationTest {
         assertEquals(HttpStatusCode.OK, history.status)
         assertEquals(1, Regex("clientMessageId").findAll(history.bodyAsText()).count())
     }
+
+    @Test
+    fun announcementsSyncAndReadStateAreUserScoped() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+        val created = client.post("/announcements") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody("""{"title":"Exam","body":"Tomorrow","deepLink":"cs26://notice/1"}""")
+        }
+        assertEquals(HttpStatusCode.Created, created.status)
+        val noticeId = Regex("\\\"id\\\":\\\"([^\\\"]+)\\\"").find(created.bodyAsText())!!.groupValues[1]
+        val unread = client.get("/notifications") { header(HttpHeaders.Authorization, "Bearer ${session.accessToken}") }
+        assertEquals(true, unread.bodyAsText().contains("\"read\":false"))
+        assertEquals(HttpStatusCode.NoContent, client.post("/notifications/$noticeId/read") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }.status)
+        val read = client.get("/notifications") { header(HttpHeaders.Authorization, "Bearer ${session.accessToken}") }
+        assertEquals(true, read.bodyAsText().contains("\"read\":true"))
+    }
 }
