@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class SendMessageRequest(
     val clientMessageId: String,
     val content: String,
+    val attachments: List<MediaAttachment> = emptyList(),
 )
 
 @Serializable
@@ -16,6 +17,7 @@ data class ChatMessage(
     val senderId: String,
     val content: String,
     val createdAtEpochMillis: Long,
+    val attachments: List<MediaAttachment> = emptyList(),
 )
 
 @Serializable
