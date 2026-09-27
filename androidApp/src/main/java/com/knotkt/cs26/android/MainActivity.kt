@@ -2,6 +2,7 @@ package com.knotkt.cs26.android
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.media.MediaRecorder
 import android.media.MediaPlayer
 import android.os.Bundle
@@ -46,6 +47,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import java.io.File
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 import kotlinx.serialization.json.Json
 
@@ -76,12 +78,19 @@ class MainActivity : ComponentActivity() {
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) uploadImage(uri)
     }
+    private val cameraPicker = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) uploadCapturedImage(bitmap)
+    }
     private val chatImagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) uploadChatImage(uri)
     }
     private val audioPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startRecordingInternal()
         else chatState = chatState.copy(error = "Microphone permission is required to record audio")
+    }
+    private val cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) cameraPicker.launch(null)
+        else postState = postState.copy(error = "Camera permission is required to take a photo")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,6 +110,7 @@ class MainActivity : ComponentActivity() {
                 onPublishPost = ::publishPost,
                 onRefreshPosts = ::refreshPosts,
                 onAddImage = { imagePicker.launch("image/*") },
+                onTakePhoto = ::takePhoto,
                 onToggleLike = ::toggleLike,
                 onDeletePost = ::deletePost,
                 onLoadComments = ::loadComments,
@@ -376,9 +386,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun uploadImage(uri: android.net.Uri) {
-        val session = authState.session ?: return
+        if (authState.session == null) return
         val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return
         val mimeType = contentResolver.getType(uri) ?: "image/jpeg"
+        uploadPostImage(bytes, mimeType)
+    }
+
+    private fun takePhoto() {
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            return
+        }
+        cameraPicker.launch(null)
+    }
+
+    private fun uploadCapturedImage(bitmap: Bitmap) {
+        val output = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+        uploadPostImage(output.toByteArray(), "image/jpeg")
+    }
+
+    private fun uploadPostImage(bytes: ByteArray, mimeType: String) {
+        val session = authState.session ?: return
         postState = postState.copy(isUploading = true, error = null)
         scope.launch {
             val result = runCatching {
