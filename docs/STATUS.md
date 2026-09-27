@@ -32,6 +32,6 @@ Pull requests are required for both repositories. CS26 PR checks run the full JV
 
 ## Next slice / 下一切片
 
-Review the campus social UI proposal, then implement the social shell and feed states. In parallel, collect M3 retry/receipt/reconnect evidence, capture a real-device performance record, and prepare the signed-package checklist. Keep real SMS/OAuth, OSS, push provider and deployment credentials explicitly deferred. Integrate a pinned Knot scaffold only after the CS26 evidence is repeatable.
+Use `docs/PRODUCT-SPEC.md` as the product source of truth, then implement the social shell and plaza states. In parallel, collect M3 retry/receipt/reconnect evidence, capture a real-device performance record, and prepare the signed-package checklist. Keep real SMS/OAuth, OSS, push provider and deployment credentials explicitly deferred. Integrate a pinned Knot scaffold only after the CS26 evidence is repeatable.
 
-下一步先评审校园社交界面方案，再实现社交主框架和动态状态；同时补 M3 重试/回执/重连证据，采集真机性能记录并准备签名包清单。真实短信/OAuth、OSS、推送供应商和部署密钥继续明确搁置，不阻塞本地开发。CS26 证据可重复后，再接入固定版本的 Knot 脚手架并沉淀更多能力。
+下一步以 `docs/PRODUCT-SPEC.md` 作为产品依据，实现社交主框架和广场状态；同时补 M3 重试/回执/重连证据，采集真机性能记录并准备签名包清单。真实短信/OAuth、OSS、推送供应商和部署密钥继续明确搁置，不阻塞本地开发。CS26 证据可重复后，再接入固定版本的 Knot 脚手架并沉淀更多能力。
