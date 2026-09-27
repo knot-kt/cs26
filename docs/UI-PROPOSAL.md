@@ -1,5 +1,9 @@
 # Campus Social UI Proposal / 校园社交界面方案
 
+> Superseded by [`PRODUCT-SPEC.md`](PRODUCT-SPEC.md). This file is retained as the earlier design discussion; the product specification is the source of truth for current UI names, identity rules, and feature scope.
+>
+> 本文档已由 [`PRODUCT-SPEC.md`](PRODUCT-SPEC.md) 取代，仅保留早期设计讨论。当前 UI 名称、身份规则和功能范围以产品规格为准。
+
 ## Product Position / 产品定位
 
 CS26 should feel like a campus community, not a collection of API test panels. The first screen after sign-in is a useful feed with people, campus context, and a clear publish action. Authentication, health checks, and debug values stay outside the main social surface.

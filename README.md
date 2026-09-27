@@ -25,7 +25,8 @@ Android 是完整验收端；iOS 和 macOS Desktop 按计划验证共享能力�
 - [需求、范围与验收](docs/REQUIREMENTS.md)
 - [实施架构与开发路线](docs/IMPLEMENTATION.md)
 - [交付状态 / Delivery status](docs/STATUS.md)
-- [校园社交界面方案 / Campus social UI proposal](docs/UI-PROPOSAL.md)
+- [产品规格 / Product specification](docs/PRODUCT-SPEC.md)
+- [早期 UI 方案 / Earlier UI proposal](docs/UI-PROPOSAL.md)
 - [开发流程 / Development Workflow](docs/DEVELOPMENT.md)
 - [贡献指南 / Contributing](CONTRIBUTING.md)
 
