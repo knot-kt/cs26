@@ -1,6 +1,7 @@
 package com.knotkt.cs26.server
 
 import io.ktor.client.request.get
+import io.ktor.client.request.delete
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -115,5 +116,32 @@ class ApplicationTest {
         val response = client.get("/posts")
 
         assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
+
+    @Test
+    fun ownerCanDeleteAndUsersCanLikeAndComment() = testApplication {
+        val authService = InMemoryAuthService()
+        application { module(authService) }
+        authService.requestCode("+8613800138000")
+        val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
+        val created = client.post("/posts") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody("""{"content":"interactive post"}""")
+        }
+        val postId = Regex("\\\"id\\\":\\\"([^\\\"]+)\\\"").find(created.bodyAsText())!!.groupValues[1]
+
+        assertEquals(HttpStatusCode.NoContent, client.post("/posts/$postId/like") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }.status)
+        val comment = client.post("/posts/$postId/comments") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+            contentType(ContentType.Application.Json)
+            setBody("""{"content":"nice"}""")
+        }
+        assertEquals(HttpStatusCode.Created, comment.status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/posts/$postId") {
+            header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
+        }.status)
     }
 }

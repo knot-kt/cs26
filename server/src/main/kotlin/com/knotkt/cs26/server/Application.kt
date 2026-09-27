@@ -2,6 +2,7 @@ package com.knotkt.cs26.server
 
 import com.knotkt.cs26.contracts.AuthError
 import com.knotkt.cs26.contracts.CreatePostRequest
+import com.knotkt.cs26.contracts.CreateCommentRequest
 import com.knotkt.cs26.contracts.PostPage
 import com.knotkt.cs26.contracts.MediaUploadResponse
 import com.knotkt.cs26.contracts.RequestCodeRequest
@@ -24,6 +25,7 @@ import io.ktor.server.request.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 
@@ -129,7 +131,53 @@ fun Application.module(
                 return@get
             }
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
-            call.respond(PostPage(postStore.list(limit)))
+            call.respond(PostPage(postStore.list(limit, authService.findSession(token)?.userId.orEmpty())))
+        }
+        delete("/posts/{id}") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val id = call.parameters["id"]
+            if (session == null || id == null || !postStore.delete(id, session.userId)) {
+                call.respond(HttpStatusCode.NotFound, AuthError("post_not_found", "post is missing or not owned by this user"))
+            } else {
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+        post("/posts/{id}/like") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val id = call.parameters["id"]
+            if (session == null || id == null || !postStore.toggleLike(id, session.userId)) {
+                call.respond(HttpStatusCode.NotFound, AuthError("post_not_found", "post does not exist"))
+            } else {
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+        post("/posts/{id}/comments") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val id = call.parameters["id"]
+            val request = call.receive<CreateCommentRequest>()
+            val content = request.content.trim()
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (id == null || content.isEmpty() || content.length > 1_000) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_content", "comment must contain 1-1000 characters"))
+            } else {
+                val comment = postStore.addComment(id, session.userId, content)
+                if (comment == null) call.respond(HttpStatusCode.NotFound, AuthError("post_not_found", "post does not exist"))
+                else call.respond(HttpStatusCode.Created, comment)
+            }
+        }
+        get("/posts/{id}/comments") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            if (token == null || authService.findSession(token) == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                val id = call.parameters["id"]
+                if (id == null) call.respond(HttpStatusCode.NotFound, AuthError("post_not_found", "post does not exist"))
+                else call.respond(postStore.comments(id))
+            }
         }
         post("/media/upload") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))
