@@ -151,7 +151,7 @@ class ApplicationTest {
         application { module(authService) }
         authService.requestCode("+8613800138000")
         val session = checkNotNull(authService.verifyCode("+8613800138000", "123456"))
-        val body = """{"clientMessageId":"client-1","content":"hello"}"""
+        val body = """{"clientMessageId":"client-1","content":"hello","attachments":[{"kind":"IMAGE","objectKey":"uploads/chat.jpg","mimeType":"image/jpeg","sizeBytes":256}]}"""
         val first = client.post("/conversations/demo/messages") {
             header(HttpHeaders.Authorization, "Bearer ${session.accessToken}")
             contentType(ContentType.Application.Json)
