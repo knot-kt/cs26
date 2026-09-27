@@ -33,6 +33,11 @@ fun Cs26App(
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
     onAddImage: () -> Unit,
+    onToggleLike: (String) -> Unit,
+    onDeletePost: (String) -> Unit,
+    onLoadComments: (String) -> Unit,
+    onCommentInputChanged: (String, String) -> Unit,
+    onAddComment: (String) -> Unit,
     chatState: ChatState,
     onChatInputChanged: (String) -> Unit,
     onConnectChat: () -> Unit,
@@ -102,7 +107,7 @@ fun Cs26App(
                     Button(
                         onClick = onPublishPost,
                         enabled = (postState.content.isNotBlank() || postState.attachments.isNotEmpty()) &&
-                            !postState.isPublishing && !postState.isUploading,
+                            !postState.isPublishing && !postState.isUploading && !postState.isInteracting,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (postState.isPublishing) "Publishing" else "Publish")
@@ -135,6 +140,44 @@ fun Cs26App(
                                 text = "${post.authorId} · ${post.createdAtEpochMillis}",
                                 style = MaterialTheme.typography.labelSmall,
                             )
+                            Text("Likes: ${post.likeCount} · Comments: ${post.commentCount}")
+                            Button(
+                                onClick = { onToggleLike(post.id) },
+                                enabled = !postState.isInteracting,
+                            ) {
+                                Text(if (post.likedByViewer) "Unlike" else "Like")
+                            }
+                            if (post.authorId == authState.session.userId) {
+                                Button(
+                                    onClick = { onDeletePost(post.id) },
+                                    enabled = !postState.isInteracting,
+                                ) {
+                                    Text("Delete")
+                                }
+                            }
+                            Button(
+                                onClick = { onLoadComments(post.id) },
+                                enabled = !postState.isInteracting,
+                            ) {
+                                Text("Load comments")
+                            }
+                            postState.commentsByPost[post.id].orEmpty().forEach { comment ->
+                                Text("${comment.authorId}: ${comment.content}")
+                            }
+                            OutlinedTextField(
+                                value = postState.commentInputs[post.id].orEmpty(),
+                                onValueChange = { value -> onCommentInputChanged(post.id, value) },
+                                label = { Text("Comment") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Button(
+                                onClick = { onAddComment(post.id) },
+                                enabled = postState.commentInputs[post.id].orEmpty().isNotBlank() &&
+                                    !postState.isInteracting,
+                            ) {
+                                Text("Add comment")
+                            }
                         }
                     }
                     if (postState.error != null) {

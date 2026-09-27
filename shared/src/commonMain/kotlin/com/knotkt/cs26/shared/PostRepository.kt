@@ -4,9 +4,12 @@ import com.knotkt.cs26.contracts.CreatePostRequest
 import com.knotkt.cs26.contracts.Post
 import com.knotkt.cs26.contracts.PostPage
 import com.knotkt.cs26.contracts.MediaUploadResponse
+import com.knotkt.cs26.contracts.Comment
+import com.knotkt.cs26.contracts.CreateCommentRequest
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.request.delete
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -26,6 +29,32 @@ class PostRepository(
         }
         .body<PostPage>()
         .items
+
+    suspend fun toggleLike(accessToken: String, postId: String) {
+        client.post("$baseUrl/posts/$postId/like") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
+    }
+
+    suspend fun delete(accessToken: String, postId: String) {
+        client.delete("$baseUrl/posts/$postId") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
+    }
+
+    suspend fun comments(accessToken: String, postId: String): List<Comment> = client
+        .get("$baseUrl/posts/$postId/comments") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+        }
+        .body()
+
+    suspend fun addComment(accessToken: String, postId: String, content: String): Comment = client
+        .post("$baseUrl/posts/$postId/comments") {
+            header(HttpHeaders.Authorization, "Bearer $accessToken")
+            contentType(ContentType.Application.Json)
+            setBody(CreateCommentRequest(content))
+        }
+        .body()
 
     suspend fun create(accessToken: String, content: String): Post = client
         .post("$baseUrl/posts") {
