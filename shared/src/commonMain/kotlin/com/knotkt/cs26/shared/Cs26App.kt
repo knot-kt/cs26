@@ -33,6 +33,7 @@ fun Cs26App(
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
     onAddImage: () -> Unit,
+    onTakePhoto: () -> Unit,
     onToggleLike: (String) -> Unit,
     onDeletePost: (String) -> Unit,
     onLoadComments: (String) -> Unit,
@@ -119,6 +120,13 @@ fun Cs26App(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (postState.isUploading) "Uploading" else "Add image")
+                    }
+                    Button(
+                        onClick = onTakePhoto,
+                        enabled = postState.attachments.size < 9 && !postState.isUploading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Take photo")
                     }
                     postState.attachments.forEach { attachment ->
                         Text("Attached ${attachment.objectKey} (${attachment.sizeBytes} bytes)")
