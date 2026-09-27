@@ -37,6 +37,9 @@ fun Cs26App(
     onChatInputChanged: (String) -> Unit,
     onConnectChat: () -> Unit,
     onSendChat: () -> Unit,
+    noticeState: NoticeState,
+    onRefreshNotices: () -> Unit,
+    onMarkNoticeRead: (String) -> Unit,
 ) {
     MaterialTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -164,6 +167,33 @@ fun Cs26App(
                     }
                     if (chatState.error != null) {
                         Text("Chat error: ${chatState.error}", color = MaterialTheme.colorScheme.error)
+                    }
+                    Text("Notifications", style = MaterialTheme.typography.titleMedium)
+                    Button(
+                        onClick = onRefreshNotices,
+                        enabled = !noticeState.isLoading,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (noticeState.isLoading) "Refreshing" else "Refresh notifications")
+                    }
+                    noticeState.notices.forEach { notice ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                        ) {
+                            Text(if (notice.read) notice.title else "[Unread] ${notice.title}")
+                            Text(notice.body)
+                            if (notice.deepLink != null) Text("Open: ${notice.deepLink}")
+                            if (!notice.read) {
+                                Button(onClick = { onMarkNoticeRead(notice.id) }) {
+                                    Text("Mark read")
+                                }
+                            }
+                        }
+                    }
+                    if (noticeState.error != null) {
+                        Text("Notification error: ${noticeState.error}", color = MaterialTheme.colorScheme.error)
                     }
                     Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Text("Sign out")
