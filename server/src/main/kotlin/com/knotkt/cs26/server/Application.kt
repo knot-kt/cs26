@@ -19,6 +19,9 @@ import com.knotkt.cs26.contracts.BlockStateResponse
 import com.knotkt.cs26.contracts.BlockedUsers
 import com.knotkt.cs26.contracts.CreateReportRequest
 import com.knotkt.cs26.contracts.ReportReceipt
+import com.knotkt.cs26.contracts.ConversationPage
+import com.knotkt.cs26.contracts.CreateGroupRequest
+import com.knotkt.cs26.contracts.GroupInviteRequest
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
@@ -67,6 +70,7 @@ fun Application.module(
     profileStore: ProfileStore = InMemoryProfileStore(),
     followStore: FollowStore = InMemoryFollowStore(),
     safetyStore: SafetyStore = InMemorySafetyStore(),
+    groupStore: GroupStore = InMemoryGroupStore(),
     pushPublisher: PushPublisher = PushPublisher.fromEnvironment(),
 ) {
     install(ContentNegotiation) {
@@ -371,6 +375,82 @@ fun Application.module(
             if (media == null) call.respond(HttpStatusCode.NotFound, AuthError("media_not_found", "media is missing"))
             else call.respondBytes(media.bytes, io.ktor.http.ContentType.parse(media.mimeType))
         }
+        post("/groups") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@post
+            }
+            val name = call.receive<CreateGroupRequest>().name.trim()
+            if (name.length !in 1..64) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_group", "group name must be 1-64 characters"))
+                return@post
+            }
+            call.respond(HttpStatusCode.Created, groupStore.create(session.userId, name))
+        }
+        get("/conversations") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                call.respond(ConversationPage(groupStore.listFor(session.userId)))
+            }
+        }
+        get("/groups/{id}") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val conversationId = call.parameters["id"]
+            val group = conversationId?.let(groupStore::get)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (group == null || !groupStore.isMember(session.userId, group.id)) {
+                call.respond(HttpStatusCode.NotFound, AuthError("group_not_found", "group is missing or inaccessible"))
+            } else {
+                call.respond(group)
+            }
+        }
+        post("/groups/{id}/invites") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val conversationId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@post
+            }
+            val userId = call.receive<GroupInviteRequest>().userId.trim()
+            val invite = conversationId?.let { groupStore.invite(session.userId, it, userId) }
+            if (invite == null) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_invite", "only the owner may invite and the group must have room"))
+            } else {
+                call.respond(HttpStatusCode.Created, invite)
+            }
+        }
+        post("/groups/{id}/accept") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val conversationId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                val group = conversationId?.let { groupStore.accept(session.userId, it) }
+                if (group == null) call.respond(HttpStatusCode.BadRequest, AuthError("invalid_invite", "invite is missing or group is full"))
+                else call.respond(group)
+            }
+        }
+        post("/groups/{id}/leave") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val conversationId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (conversationId == null || !groupStore.leave(session.userId, conversationId)) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_leave", "owner cannot leave and member is required"))
+            } else {
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
         post("/conversations/{id}/messages") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))
             val session = token?.let(authService::findSession)
@@ -383,6 +463,8 @@ fun Application.module(
                 (content.isEmpty() && request.attachments.isEmpty()) || content.length > 4_000
             ) {
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_message", "message fields are invalid"))
+            } else if (groupStore.isGroup(conversationId) && !groupStore.isMember(session.userId, conversationId)) {
+                call.respond(HttpStatusCode.Forbidden, AuthError("conversation_forbidden", "user is not a group member"))
             } else if (request.attachments.size > 9 || request.attachments.any { it.objectKey.isBlank() || it.sizeBytes < 0 }) {
                 call.respond(HttpStatusCode.BadRequest, AuthError("invalid_media", "attachments are invalid"))
             } else {
@@ -394,12 +476,15 @@ fun Application.module(
         }
         get("/conversations/{id}/messages") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))
-            if (token == null || authService.findSession(token) == null) {
+            val session = token?.let(authService::findSession)
+            if (session == null) {
                 call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
             } else {
                 val conversationId = call.parameters["id"]
                 if (conversationId.isNullOrBlank()) {
                     call.respond(HttpStatusCode.BadRequest, AuthError("invalid_conversation", "conversation id is required"))
+                } else if (groupStore.isGroup(conversationId) && !groupStore.isMember(session.userId, conversationId)) {
+                    call.respond(HttpStatusCode.Forbidden, AuthError("conversation_forbidden", "user is not a group member"))
                 } else {
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
                     call.respond(MessagePage(chatStore.list(conversationId, limit)))
@@ -472,6 +557,10 @@ fun Application.module(
             val conversationId = call.parameters["id"]
             if (session == null || conversationId.isNullOrBlank()) {
                 close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.VIOLATED_POLICY, "invalid session or conversation"))
+                return@webSocket
+            }
+            if (groupStore.isGroup(conversationId) && !groupStore.isMember(session.userId, conversationId)) {
+                close(io.ktor.websocket.CloseReason(io.ktor.websocket.CloseReason.Codes.VIOLATED_POLICY, "conversation membership required"))
                 return@webSocket
             }
             chatHub.join(conversationId, this)
