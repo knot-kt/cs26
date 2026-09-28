@@ -26,6 +26,8 @@ import com.knotkt.cs26.shared.NoticeRepository
 import com.knotkt.cs26.shared.NoticeState
 import com.knotkt.cs26.shared.ProfileRepository
 import com.knotkt.cs26.shared.ProfileState
+import com.knotkt.cs26.shared.FollowRepository
+import com.knotkt.cs26.shared.FollowState
 import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
@@ -70,12 +72,14 @@ class MainActivity : ComponentActivity() {
     private val chatRepository = ChatRepository(client, baseUrl)
     private val noticeRepository = NoticeRepository(client, baseUrl)
     private val profileRepository = ProfileRepository(client, baseUrl)
+    private val followRepository = FollowRepository(client, baseUrl)
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
     private var chatState by mutableStateOf(ChatState())
     private var noticeState by mutableStateOf(NoticeState())
     private var profileState by mutableStateOf(ProfileState())
+    private var followState by mutableStateOf(FollowState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private var noticeJob: Job? = null
@@ -144,6 +148,8 @@ class MainActivity : ComponentActivity() {
                 onProfileAnonymousChanged = { anonymous -> profileState = profileState.copy(anonymousByDefault = anonymous, error = null) },
                 onRefreshProfile = ::refreshProfile,
                 onSaveProfile = ::saveProfile,
+                followState = followState,
+                onToggleFollow = ::toggleFollow,
             )
         }
     }
@@ -209,6 +215,7 @@ class MainActivity : ComponentActivity() {
             if (result.isSuccess) refreshPosts()
             if (result.isSuccess) {
                 refreshProfile()
+                refreshFollowing()
                 refreshNotices()
                 connectNotices()
             }
@@ -499,6 +506,47 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshFollowing() {
+        val session = authState.session ?: return
+        followState = followState.copy(isLoading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { followRepository.list(session.accessToken) }
+            }
+            followState = result.fold(
+                onSuccess = { following -> followState.copy(followingIds = following.userIds.toSet(), isLoading = false) },
+                onFailure = { error -> followState.copy(isLoading = false, error = error.message ?: "load following failed") },
+            )
+        }
+    }
+
+    private fun toggleFollow(userId: String) {
+        val session = authState.session ?: return
+        val isFollowing = userId in followState.followingIds
+        followState = followState.copy(isLoading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    if (isFollowing) followRepository.unfollow(session.accessToken, userId)
+                    else followRepository.follow(session.accessToken, userId)
+                }
+            }
+            followState = result.fold(
+                onSuccess = { response ->
+                    followState.copy(
+                        followingIds = if (response.following) {
+                            followState.followingIds + userId
+                        } else {
+                            followState.followingIds - userId
+                        },
+                        isLoading = false,
+                    )
+                },
+                onFailure = { error -> followState.copy(isLoading = false, error = error.message ?: "update follow failed") },
+            )
+        }
+    }
+
     private fun connectNotices() {
         val session = authState.session ?: return
         noticeJob?.cancel()
@@ -757,6 +805,7 @@ class MainActivity : ComponentActivity() {
             chatState = ChatState()
             noticeState = NoticeState()
             profileState = ProfileState()
+            followState = FollowState()
         }
     }
 

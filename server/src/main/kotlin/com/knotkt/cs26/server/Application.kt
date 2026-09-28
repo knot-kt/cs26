@@ -13,6 +13,8 @@ import com.knotkt.cs26.contracts.PostPage
 import com.knotkt.cs26.contracts.MediaUploadResponse
 import com.knotkt.cs26.contracts.RequestCodeRequest
 import com.knotkt.cs26.contracts.VerifyCodeRequest
+import com.knotkt.cs26.contracts.FollowStateResponse
+import com.knotkt.cs26.contracts.FollowingList
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
@@ -59,6 +61,7 @@ fun Application.module(
     noticeStore: NoticeStore = InMemoryNoticeStore(),
     noticeHub: NoticeHub = NoticeHub(),
     profileStore: ProfileStore = InMemoryProfileStore(),
+    followStore: FollowStore = InMemoryFollowStore(),
     pushPublisher: PushPublisher = PushPublisher.fromEnvironment(),
 ) {
     install(ContentNegotiation) {
@@ -156,6 +159,39 @@ fun Application.module(
                 return@patch
             }
             call.respond(profileStore.update(session.userId, nickname, interests, request.anonymousByDefault))
+        }
+        get("/me/following") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                call.respond(FollowingList(followStore.listFollowing(session.userId)))
+            }
+        }
+        post("/users/{id}/follow") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val targetId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (targetId.isNullOrBlank() || !followStore.setFollowing(session.userId, targetId, following = true)) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_follow", "a user cannot follow themselves"))
+            } else {
+                call.respond(FollowStateResponse(targetId, following = true))
+            }
+        }
+        delete("/users/{id}/follow") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val targetId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (targetId.isNullOrBlank() || !followStore.setFollowing(session.userId, targetId, following = false)) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_follow", "a user cannot follow themselves"))
+            } else {
+                call.respond(FollowStateResponse(targetId, following = false))
+            }
         }
         post("/posts") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))
