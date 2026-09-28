@@ -72,4 +72,5 @@ data class Comment(
 @Serializable
 data class PostPage(
     val items: List<Post>,
+    val nextCursor: String? = null,
 )

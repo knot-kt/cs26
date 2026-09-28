@@ -154,7 +154,15 @@ fun Application.module(
                 return@get
             }
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
-            call.respond(PostPage(postStore.list(limit, authService.findSession(token)?.userId.orEmpty())))
+            val before = call.request.queryParameters["before"]?.toLongOrNull()
+            val items = postStore.list(limit + 1, authService.findSession(token)?.userId.orEmpty(), before)
+            val pageItems = items.take(limit)
+            val nextCursor = if (items.size > limit) {
+                pageItems.lastOrNull()?.createdAtEpochMillis?.toString()
+            } else {
+                null
+            }
+            call.respond(PostPage(pageItems, nextCursor))
         }
         delete("/posts/{id}") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))

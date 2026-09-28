@@ -113,6 +113,7 @@ class MainActivity : ComponentActivity() {
                 onPostTypeChanged = { type -> postState = postState.copy(type = type, error = null) },
                 onPublishPost = ::publishPost,
                 onRefreshPosts = ::refreshPosts,
+                onLoadMorePosts = ::loadMorePosts,
                 onAddImage = { imagePicker.launch("image/*") },
                 onTakePhoto = ::takePhoto,
                 onToggleLike = ::toggleLike,
@@ -208,11 +209,36 @@ class MainActivity : ComponentActivity() {
         postState = postState.copy(isLoading = true, error = null)
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { postRepository.list(session.accessToken) }
+                withContext(Dispatchers.IO) { postRepository.listPage(session.accessToken) }
             }
             postState = result.fold(
-                onSuccess = { posts -> postState.copy(posts = posts, isLoading = false) },
+                onSuccess = { page -> postState.copy(posts = page.items, nextCursor = page.nextCursor, isLoading = false) },
                 onFailure = { error -> postState.copy(isLoading = false, error = error.message ?: "load posts failed") },
+            )
+        }
+    }
+
+    private fun loadMorePosts() {
+        val session = authState.session ?: return
+        val cursor = postState.nextCursor ?: return
+        if (postState.isLoadingMore) return
+        postState = postState.copy(isLoadingMore = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { postRepository.listPage(session.accessToken, cursor) }
+            }
+            postState = result.fold(
+                onSuccess = { page ->
+                    val knownIds = postState.posts.mapTo(mutableSetOf()) { it.id }
+                    postState.copy(
+                        posts = postState.posts + page.items.filterNot { it.id in knownIds },
+                        nextCursor = page.nextCursor,
+                        isLoadingMore = false,
+                    )
+                },
+                onFailure = { error ->
+                    postState.copy(isLoadingMore = false, error = error.message ?: "load more posts failed")
+                },
             )
         }
     }
