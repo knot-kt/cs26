@@ -98,6 +98,8 @@ fun Cs26App(
     onProfileAnonymousChanged: (Boolean) -> Unit,
     onRefreshProfile: () -> Unit,
     onSaveProfile: () -> Unit,
+    followState: FollowState,
+    onToggleFollow: (String) -> Unit,
 ) {
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -150,6 +152,8 @@ fun Cs26App(
                     onProfileAnonymousChanged = onProfileAnonymousChanged,
                     onRefreshProfile = onRefreshProfile,
                     onSaveProfile = onSaveProfile,
+                    followState = followState,
+                    onToggleFollow = onToggleFollow,
                 )
             }
         }
@@ -250,6 +254,8 @@ private fun SocialShell(
     onProfileAnonymousChanged: (Boolean) -> Unit,
     onRefreshProfile: () -> Unit,
     onSaveProfile: () -> Unit,
+    followState: FollowState,
+    onToggleFollow: (String) -> Unit,
 ) {
     var selectedDestination by rememberSaveable { mutableStateOf(SocialDestination.PLAZA) }
     var showComposer by rememberSaveable { mutableStateOf(false) }
@@ -316,6 +322,8 @@ private fun SocialShell(
                     onLoadComments = onLoadComments,
                     onCommentInputChanged = onCommentInputChanged,
                     onAddComment = onAddComment,
+                    followState = followState,
+                    onToggleFollow = onToggleFollow,
                 )
 
                 SocialDestination.MESSAGES -> MessagesScreen(
@@ -389,6 +397,8 @@ private fun PlazaScreen(
     onLoadComments: (String) -> Unit,
     onCommentInputChanged: (String, String) -> Unit,
     onAddComment: (String) -> Unit,
+    followState: FollowState,
+    onToggleFollow: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -437,6 +447,8 @@ private fun PlazaScreen(
                 onLoadComments = onLoadComments,
                 onCommentInputChanged = onCommentInputChanged,
                 onAddComment = onAddComment,
+                followState = followState,
+                onToggleFollow = onToggleFollow,
             )
         }
         if (postState.error != null) {
@@ -607,6 +619,8 @@ private fun PostCard(
     onLoadComments: (String) -> Unit,
     onCommentInputChanged: (String, String) -> Unit,
     onAddComment: (String) -> Unit,
+    followState: FollowState,
+    onToggleFollow: (String) -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -632,6 +646,15 @@ private fun PostCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                if (post.authorId != viewerId) {
+                    OutlinedButton(
+                        onClick = { onToggleFollow(post.authorId) },
+                        enabled = !followState.isLoading,
+                    ) {
+                        Text(if (post.authorId in followState.followingIds) "已关注" else "关注")
+                    }
                 }
             }
             if (post.content.isNotBlank()) Text(post.content)
