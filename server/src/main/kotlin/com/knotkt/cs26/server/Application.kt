@@ -33,6 +33,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.response.respondBytes
 import io.ktor.server.routing.get
 import io.ktor.server.routing.delete
+import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
@@ -57,6 +58,7 @@ fun Application.module(
     chatHub: ChatHub = ChatHub(),
     noticeStore: NoticeStore = InMemoryNoticeStore(),
     noticeHub: NoticeHub = NoticeHub(),
+    profileStore: ProfileStore = InMemoryProfileStore(),
     pushPublisher: PushPublisher = PushPublisher.fromEnvironment(),
 ) {
     install(ContentNegotiation) {
@@ -123,6 +125,37 @@ fun Application.module(
             } else {
                 call.respond(session)
             }
+        }
+        get("/me/profile") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                call.respond(profileStore.get(session.userId))
+            }
+        }
+        patch("/me/profile") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@patch
+            }
+            val request = call.receive<com.knotkt.cs26.contracts.UpdateProfileRequest>()
+            val nickname = request.nickname.trim()
+            val interests = request.interests
+                .map(String::trim)
+                .filter(String::isNotEmpty)
+                .distinct()
+            if (nickname.length !in 1..32 || interests.size > 10 || interests.any { it.length > 24 }) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    AuthError("invalid_profile", "nickname must be 1-32 characters and interests must contain at most 10 items"),
+                )
+                return@patch
+            }
+            call.respond(profileStore.update(session.userId, nickname, interests, request.anonymousByDefault))
         }
         post("/posts") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))

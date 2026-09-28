@@ -24,6 +24,8 @@ import com.knotkt.cs26.shared.ChatRepository
 import com.knotkt.cs26.shared.ChatState
 import com.knotkt.cs26.shared.NoticeRepository
 import com.knotkt.cs26.shared.NoticeState
+import com.knotkt.cs26.shared.ProfileRepository
+import com.knotkt.cs26.shared.ProfileState
 import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
@@ -67,11 +69,13 @@ class MainActivity : ComponentActivity() {
     private val postRepository = PostRepository(client, baseUrl)
     private val chatRepository = ChatRepository(client, baseUrl)
     private val noticeRepository = NoticeRepository(client, baseUrl)
+    private val profileRepository = ProfileRepository(client, baseUrl)
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
     private var chatState by mutableStateOf(ChatState())
     private var noticeState by mutableStateOf(NoticeState())
+    private var profileState by mutableStateOf(ProfileState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private var noticeJob: Job? = null
@@ -134,6 +138,12 @@ class MainActivity : ComponentActivity() {
                 noticeState = noticeState,
                 onRefreshNotices = ::refreshNotices,
                 onMarkNoticeRead = ::markNoticeRead,
+                profileState = profileState,
+                onProfileNicknameChanged = { nickname -> profileState = profileState.copy(nickname = nickname, error = null) },
+                onProfileInterestsChanged = { interests -> profileState = profileState.copy(interestsInput = interests, error = null) },
+                onProfileAnonymousChanged = { anonymous -> profileState = profileState.copy(anonymousByDefault = anonymous, error = null) },
+                onRefreshProfile = ::refreshProfile,
+                onSaveProfile = ::saveProfile,
             )
         }
     }
@@ -198,6 +208,7 @@ class MainActivity : ComponentActivity() {
             )
             if (result.isSuccess) refreshPosts()
             if (result.isSuccess) {
+                refreshProfile()
                 refreshNotices()
                 connectNotices()
             }
@@ -428,6 +439,62 @@ class MainActivity : ComponentActivity() {
             noticeState = result.fold(
                 onSuccess = { notices -> noticeState.copy(notices = notices, isLoading = false) },
                 onFailure = { error -> noticeState.copy(isLoading = false, error = error.message ?: "load notifications failed") },
+            )
+        }
+    }
+
+    private fun refreshProfile() {
+        val session = authState.session ?: return
+        profileState = profileState.copy(isLoading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { profileRepository.get(session.accessToken) }
+            }
+            profileState = result.fold(
+                onSuccess = { profile ->
+                    profileState.copy(
+                        profile = profile,
+                        nickname = profile.nickname,
+                        interestsInput = profile.interests.joinToString(", "),
+                        anonymousByDefault = profile.anonymousByDefault,
+                        isLoading = false,
+                    )
+                },
+                onFailure = { error -> profileState.copy(isLoading = false, error = error.message ?: "load profile failed") },
+            )
+        }
+    }
+
+    private fun saveProfile() {
+        val session = authState.session ?: return
+        val interests = profileState.interestsInput
+            .split(",", "，", "#")
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .distinct()
+        profileState = profileState.copy(isSaving = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    profileRepository.update(
+                        session.accessToken,
+                        profileState.nickname,
+                        interests,
+                        profileState.anonymousByDefault,
+                    )
+                }
+            }
+            profileState = result.fold(
+                onSuccess = { profile ->
+                    profileState.copy(
+                        profile = profile,
+                        nickname = profile.nickname,
+                        interestsInput = profile.interests.joinToString(", "),
+                        anonymousByDefault = profile.anonymousByDefault,
+                        isSaving = false,
+                    )
+                },
+                onFailure = { error -> profileState.copy(isSaving = false, error = error.message ?: "save profile failed") },
             )
         }
     }
@@ -689,6 +756,7 @@ class MainActivity : ComponentActivity() {
             noticeJob?.cancel()
             chatState = ChatState()
             noticeState = NoticeState()
+            profileState = ProfileState()
         }
     }
 

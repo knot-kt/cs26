@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -91,6 +92,12 @@ fun Cs26App(
     noticeState: NoticeState,
     onRefreshNotices: () -> Unit,
     onMarkNoticeRead: (String) -> Unit,
+    profileState: ProfileState,
+    onProfileNicknameChanged: (String) -> Unit,
+    onProfileInterestsChanged: (String) -> Unit,
+    onProfileAnonymousChanged: (Boolean) -> Unit,
+    onRefreshProfile: () -> Unit,
+    onSaveProfile: () -> Unit,
 ) {
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -137,6 +144,12 @@ fun Cs26App(
                     noticeState = noticeState,
                     onRefreshNotices = onRefreshNotices,
                     onMarkNoticeRead = onMarkNoticeRead,
+                    profileState = profileState,
+                    onProfileNicknameChanged = onProfileNicknameChanged,
+                    onProfileInterestsChanged = onProfileInterestsChanged,
+                    onProfileAnonymousChanged = onProfileAnonymousChanged,
+                    onRefreshProfile = onRefreshProfile,
+                    onSaveProfile = onSaveProfile,
                 )
             }
         }
@@ -231,6 +244,12 @@ private fun SocialShell(
     noticeState: NoticeState,
     onRefreshNotices: () -> Unit,
     onMarkNoticeRead: (String) -> Unit,
+    profileState: ProfileState,
+    onProfileNicknameChanged: (String) -> Unit,
+    onProfileInterestsChanged: (String) -> Unit,
+    onProfileAnonymousChanged: (Boolean) -> Unit,
+    onRefreshProfile: () -> Unit,
+    onSaveProfile: () -> Unit,
 ) {
     var selectedDestination by rememberSaveable { mutableStateOf(SocialDestination.PLAZA) }
     var showComposer by rememberSaveable { mutableStateOf(false) }
@@ -317,7 +336,15 @@ private fun SocialShell(
                     onMarkNoticeRead = onMarkNoticeRead,
                 )
 
-                SocialDestination.ME -> ProfileScreen(onLogout = onLogout)
+                SocialDestination.ME -> ProfileScreen(
+                    profileState = profileState,
+                    onProfileNicknameChanged = onProfileNicknameChanged,
+                    onProfileInterestsChanged = onProfileInterestsChanged,
+                    onProfileAnonymousChanged = onProfileAnonymousChanged,
+                    onRefreshProfile = onRefreshProfile,
+                    onSaveProfile = onSaveProfile,
+                    onLogout = onLogout,
+                )
             }
         }
     }
@@ -911,7 +938,15 @@ private fun RemindersScreen(
 }
 
 @Composable
-private fun ProfileScreen(onLogout: () -> Unit) {
+private fun ProfileScreen(
+    profileState: ProfileState,
+    onProfileNicknameChanged: (String) -> Unit,
+    onProfileInterestsChanged: (String) -> Unit,
+    onProfileAnonymousChanged: (Boolean) -> Unit,
+    onRefreshProfile: () -> Unit,
+    onSaveProfile: () -> Unit,
+    onLogout: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -934,9 +969,53 @@ private fun ProfileScreen(onLogout: () -> Unit) {
                 }
                 Text("我的空间", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "昵称、兴趣和隐私设置将在资料模块中完善。",
+                    "只使用昵称和兴趣认识彼此，手机号不会展示。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                OutlinedTextField(
+                    value = profileState.nickname,
+                    onValueChange = onProfileNicknameChanged,
+                    label = { Text("昵称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = profileState.interestsInput,
+                    onValueChange = onProfileInterestsChanged,
+                    label = { Text("兴趣标签") },
+                    supportingText = { Text("用逗号分隔，最多 10 个") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = profileState.anonymousByDefault,
+                        onCheckedChange = { checked -> onProfileAnonymousChanged(checked) },
+                    )
+                    Text("默认以匿名身份发布")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Button(
+                        onClick = onSaveProfile,
+                        enabled = !profileState.isSaving && !profileState.isLoading,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(if (profileState.isSaving) "保存中" else "保存资料")
+                    }
+                    OutlinedButton(
+                        onClick = onRefreshProfile,
+                        enabled = !profileState.isLoading && !profileState.isSaving,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(if (profileState.isLoading) "读取中" else "刷新")
+                    }
+                }
+                if (profileState.error != null) {
+                    Text(profileState.error, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
         OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
