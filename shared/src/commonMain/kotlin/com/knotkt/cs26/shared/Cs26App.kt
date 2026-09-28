@@ -103,6 +103,11 @@ fun Cs26App(
     safetyState: SafetyState,
     onReportPost: (String) -> Unit,
     onBlockUser: (String) -> Unit,
+    groupState: GroupState,
+    onGroupNameChanged: (String) -> Unit,
+    onRefreshGroups: () -> Unit,
+    onCreateGroup: () -> Unit,
+    onSelectConversation: (String) -> Unit,
 ) {
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -160,6 +165,11 @@ fun Cs26App(
                     safetyState = safetyState,
                     onReportPost = onReportPost,
                     onBlockUser = onBlockUser,
+                    groupState = groupState,
+                    onGroupNameChanged = onGroupNameChanged,
+                    onRefreshGroups = onRefreshGroups,
+                    onCreateGroup = onCreateGroup,
+                    onSelectConversation = onSelectConversation,
                 )
             }
         }
@@ -265,6 +275,11 @@ private fun SocialShell(
     safetyState: SafetyState,
     onReportPost: (String) -> Unit,
     onBlockUser: (String) -> Unit,
+    groupState: GroupState,
+    onGroupNameChanged: (String) -> Unit,
+    onRefreshGroups: () -> Unit,
+    onCreateGroup: () -> Unit,
+    onSelectConversation: (String) -> Unit,
 ) {
     var selectedDestination by rememberSaveable { mutableStateOf(SocialDestination.PLAZA) }
     var showComposer by rememberSaveable { mutableStateOf(false) }
@@ -348,6 +363,11 @@ private fun SocialShell(
                     onPlayAudio = onPlayAudio,
                     onStartRecording = onStartRecording,
                     onStopRecording = onStopRecording,
+                    groupState = groupState,
+                    onGroupNameChanged = onGroupNameChanged,
+                    onRefreshGroups = onRefreshGroups,
+                    onCreateGroup = onCreateGroup,
+                    onSelectConversation = onSelectConversation,
                 )
 
                 SocialDestination.REMINDERS -> RemindersScreen(
@@ -849,6 +869,11 @@ private fun MessagesScreen(
     onPlayAudio: (String) -> Unit,
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
+    groupState: GroupState,
+    onGroupNameChanged: (String) -> Unit,
+    onRefreshGroups: () -> Unit,
+    onCreateGroup: () -> Unit,
+    onSelectConversation: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -863,9 +888,62 @@ private fun MessagesScreen(
             shape = MaterialTheme.shapes.medium,
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("演示会话", style = MaterialTheme.typography.titleMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("群聊", style = MaterialTheme.typography.titleMedium)
+                    OutlinedButton(onClick = onRefreshGroups, enabled = !groupState.isLoading) {
+                        Text(if (groupState.isLoading) "读取中" else "刷新")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = groupState.nameInput,
+                        onValueChange = onGroupNameChanged,
+                        label = { Text("新群名称") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = onCreateGroup,
+                        enabled = groupState.nameInput.isNotBlank() && !groupState.isCreating,
+                    ) {
+                        Text(if (groupState.isCreating) "创建中" else "创建")
+                    }
+                }
+                if (groupState.groups.isEmpty() && !groupState.isLoading) {
+                    Text("还没有群聊，创建一个最多 20 人的小群。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                groupState.groups.forEach { group ->
+                    OutlinedButton(
+                        onClick = { onSelectConversation(group.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            if (group.id == groupState.selectedConversationId) {
+                                "已选择 · ${group.name} · ${group.members.size}/20"
+                            } else {
+                                "${group.name} · ${group.members.size}/20"
+                            },
+                        )
+                    }
+                }
+                groupState.error?.let { error ->
+                    Text(error, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.White,
+            shape = MaterialTheme.shapes.medium,
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("消息会话", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "会话列表和群聊将在消息数据模型接入后显示。",
+                    "当前会话：${chatState.conversationId}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Button(
