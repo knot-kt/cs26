@@ -70,7 +70,9 @@ fun Application.module(
     profileStore: ProfileStore = InMemoryProfileStore(),
     followStore: FollowStore = InMemoryFollowStore(),
     safetyStore: SafetyStore = InMemorySafetyStore(),
-    groupStore: GroupStore = InMemoryGroupStore(),
+    groupStore: GroupStore = InMemoryGroupStore(
+        maxMembers = System.getenv("CS26_MAX_GROUP_MEMBERS")?.toIntOrNull()?.coerceIn(2, 20) ?: 20,
+    ),
     pushPublisher: PushPublisher = PushPublisher.fromEnvironment(),
 ) {
     install(ContentNegotiation) {

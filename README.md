@@ -66,6 +66,16 @@ export ANDROID_HOME="$HOME/Library/Android/sdk"
 
 服务端 health endpoint 为 `GET /health`，开发认证接口为 `POST /auth/code/request`、`POST /auth/code/verify` 和 Bearer Token 退出接口 `POST /auth/logout`。固定开发验证码为 `123456`，适配器已验证过期、尝试次数、重复发送冷却和会话撤销边界。Android 启动页已使用 Compose 渲染，并通过 Ktor Client 检查本机服务；模拟器访问宿主机使用 `10.0.2.2`。开发认证接口不能用于生产；生产部署尚未开始，任何示例配置都不得包含真实密钥。
 
+模拟器和真机使用不同的服务地址。模拟器可以使用默认的 `10.0.2.2:8080`；真机必须与开发机处于同一网络，并使用开发机局域网 IP：
+
+```bash
+./gradlew :server:run
+./gradlew :androidApp:assembleDebug -Pcs26BaseUrl=http://192.168.x.x:8080
+$HOME/Library/Android/sdk/platform-tools/adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+```
+
+The emulator uses the default `10.0.2.2:8080`. A physical device must use the developer machine's LAN IP, with the Ktor server listening on `0.0.0.0:8080`.
+
 服务端默认使用内存存储；设置 `CS26_DATABASE_URL`、`CS26_DATABASE_USER` 和 `CS26_DATABASE_PASSWORD` 后使用 PostgreSQL 存储。启动前先执行 `server/src/main/resources/db/migration/V1__auth.sql`，凭据只放在本地环境或 GitHub Environment。
 
 ## 毕设与长期维护
