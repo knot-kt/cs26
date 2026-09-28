@@ -185,6 +185,10 @@ class MainActivity : ComponentActivity() {
 
     private fun requestCode() {
         val phone = authState.phone.trim()
+        if (phone.filter(Char::isDigit).length < 8) {
+            authState = authState.copy(error = "请输入至少 8 位手机号")
+            return
+        }
         authState = authState.copy(isRequestingCode = true, error = null)
         scope.launch {
             val result = runCatching {
@@ -202,7 +206,7 @@ class MainActivity : ComponentActivity() {
                 onFailure = { error ->
                     authState.copy(
                         isRequestingCode = false,
-                        error = error.message ?: "request code failed",
+                        error = userFacingError(error, "获取验证码失败"),
                     )
                 },
             )
@@ -212,6 +216,10 @@ class MainActivity : ComponentActivity() {
     private fun verifyCode() {
         val phone = authState.phone.trim()
         val code = authState.code.trim()
+        if (phone.filter(Char::isDigit).length < 8) {
+            authState = authState.copy(error = "请输入至少 8 位手机号")
+            return
+        }
         authState = authState.copy(isVerifyingCode = true, error = null)
         scope.launch {
             val result = runCatching {
@@ -224,7 +232,7 @@ class MainActivity : ComponentActivity() {
                 onFailure = { error ->
                     authState.copy(
                         isVerifyingCode = false,
-                        error = error.message ?: "verify code failed",
+                        error = userFacingError(error, "验证码校验失败"),
                     )
                 },
             )
@@ -941,5 +949,16 @@ class MainActivity : ComponentActivity() {
         client.close()
         scope.cancel()
         super.onDestroy()
+    }
+}
+
+private fun userFacingError(error: Throwable, fallback: String): String {
+    val message = error.message.orEmpty()
+    return when {
+        message.contains("Connection refused", ignoreCase = true) ||
+            message.contains("connect timeout", ignoreCase = true) ||
+            message.contains("timeout", ignoreCase = true) ->
+            "暂时无法连接服务，请确认电脑上的 Ktor 服务已启动，并且真机与电脑在同一 Wi-Fi。"
+        else -> message.ifBlank { fallback }
     }
 }

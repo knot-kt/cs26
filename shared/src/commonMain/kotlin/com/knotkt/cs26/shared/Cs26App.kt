@@ -204,7 +204,7 @@ private fun AuthScreen(
         )
         Button(
             onClick = onRequestCode,
-            enabled = authState.phone.isNotBlank() && !authState.isRequestingCode,
+            enabled = authState.phone.filter(Char::isDigit).length >= 8 && !authState.isRequestingCode,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(if (authState.isRequestingCode) "正在发送" else "获取验证码")
