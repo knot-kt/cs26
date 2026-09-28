@@ -24,12 +24,13 @@ class PostRepository(
     private val client: HttpClient,
     private val baseUrl: String,
 ) {
-    suspend fun list(accessToken: String): List<Post> = client
-        .get("$baseUrl/posts") {
+    suspend fun listPage(accessToken: String, beforeCursor: String? = null): PostPage = client
+        .get("$baseUrl/posts?limit=20${beforeCursor?.let { "&before=$it" } ?: ""}") {
             header(HttpHeaders.Authorization, "Bearer $accessToken")
         }
         .body<PostPage>()
-        .items
+
+    suspend fun list(accessToken: String): List<Post> = listPage(accessToken).items
 
     suspend fun toggleLike(accessToken: String, postId: String) {
         client.post("$baseUrl/posts/$postId/like") {

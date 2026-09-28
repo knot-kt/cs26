@@ -72,6 +72,7 @@ fun Cs26App(
     onPostTypeChanged: (PostType) -> Unit,
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
+    onLoadMorePosts: () -> Unit,
     onAddImage: () -> Unit,
     onTakePhoto: () -> Unit,
     onToggleLike: (String) -> Unit,
@@ -117,6 +118,7 @@ fun Cs26App(
                     onPostTypeChanged = onPostTypeChanged,
                     onPublishPost = onPublishPost,
                     onRefreshPosts = onRefreshPosts,
+                    onLoadMorePosts = onLoadMorePosts,
                     onAddImage = onAddImage,
                     onTakePhoto = onTakePhoto,
                     onToggleLike = onToggleLike,
@@ -210,6 +212,7 @@ private fun SocialShell(
     onPostTypeChanged: (PostType) -> Unit,
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
+    onLoadMorePosts: () -> Unit,
     onAddImage: () -> Unit,
     onTakePhoto: () -> Unit,
     onToggleLike: (String) -> Unit,
@@ -283,6 +286,7 @@ private fun SocialShell(
                     postState = postState,
                     onOpenComposer = { showComposer = true },
                     onRefreshPosts = onRefreshPosts,
+                    onLoadMorePosts = onLoadMorePosts,
                     onToggleLike = onToggleLike,
                     onDeletePost = onDeletePost,
                     onLoadComments = onLoadComments,
@@ -332,6 +336,7 @@ private fun PlazaScreen(
     postState: PostState,
     onOpenComposer: () -> Unit,
     onRefreshPosts: () -> Unit,
+    onLoadMorePosts: () -> Unit,
     onToggleLike: (String) -> Unit,
     onDeletePost: (String) -> Unit,
     onLoadComments: (String) -> Unit,
@@ -389,6 +394,17 @@ private fun PlazaScreen(
         if (postState.error != null) {
             item {
                 Text("动态处理失败：${postState.error}", color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (postState.nextCursor != null) {
+            item {
+                OutlinedButton(
+                    onClick = onLoadMorePosts,
+                    enabled = !postState.isLoadingMore,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (postState.isLoadingMore) "正在加载" else "加载更多")
+                }
             }
         }
     }
