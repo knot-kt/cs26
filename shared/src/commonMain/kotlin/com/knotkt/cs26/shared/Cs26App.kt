@@ -234,6 +234,7 @@ private fun SocialShell(
 ) {
     var selectedDestination by rememberSaveable { mutableStateOf(SocialDestination.PLAZA) }
     var showComposer by rememberSaveable { mutableStateOf(false) }
+    var selectedPostId by rememberSaveable { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
@@ -285,6 +286,10 @@ private fun SocialShell(
                     viewerId = viewerId,
                     postState = postState,
                     onOpenComposer = { showComposer = true },
+                    onOpenPost = { postId ->
+                        selectedPostId = postId
+                        onLoadComments(postId)
+                    },
                     onRefreshPosts = onRefreshPosts,
                     onLoadMorePosts = onLoadMorePosts,
                     onToggleLike = onToggleLike,
@@ -328,6 +333,20 @@ private fun SocialShell(
             onTakePhoto = onTakePhoto,
         )
     }
+
+    val selectedPost = postState.posts.firstOrNull { it.id == selectedPostId }
+    if (selectedPost != null) {
+        PostDetailSheet(
+            postState = postState,
+            post = selectedPost,
+            viewerId = viewerId,
+            onDismiss = { selectedPostId = null },
+            onToggleLike = onToggleLike,
+            onDeletePost = onDeletePost,
+            onCommentInputChanged = onCommentInputChanged,
+            onAddComment = onAddComment,
+        )
+    }
 }
 
 @Composable
@@ -335,6 +354,7 @@ private fun PlazaScreen(
     viewerId: String,
     postState: PostState,
     onOpenComposer: () -> Unit,
+    onOpenPost: (String) -> Unit,
     onRefreshPosts: () -> Unit,
     onLoadMorePosts: () -> Unit,
     onToggleLike: (String) -> Unit,
@@ -384,6 +404,7 @@ private fun PlazaScreen(
                 viewerId = viewerId,
                 postState = postState,
                 post = post,
+                onOpenPost = onOpenPost,
                 onToggleLike = onToggleLike,
                 onDeletePost = onDeletePost,
                 onLoadComments = onLoadComments,
@@ -553,6 +574,7 @@ private fun PostCard(
     viewerId: String,
     postState: PostState,
     post: com.knotkt.cs26.contracts.Post,
+    onOpenPost: (String) -> Unit,
     onToggleLike: (String) -> Unit,
     onDeletePost: (String) -> Unit,
     onLoadComments: (String) -> Unit,
@@ -594,6 +616,9 @@ private fun PostCard(
             if (post.attachments.isNotEmpty()) {
                 Text("图片 ${post.attachments.size} 张", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            OutlinedButton(onClick = { onOpenPost(post.id) }, modifier = Modifier.fillMaxWidth()) {
+                Text("查看详情")
+            }
             HorizontalDivider()
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -628,6 +653,84 @@ private fun PostCard(
                 onValueChange = { value -> onCommentInputChanged(post.id, value) },
                 label = { Text("写评论") },
                 singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = { onAddComment(post.id) },
+                enabled = postState.commentInputs[post.id].orEmpty().isNotBlank() &&
+                    !postState.isInteracting,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("发送评论")
+            }
+        }
+    }
+}
+
+@Composable
+private fun PostDetailSheet(
+    postState: PostState,
+    post: com.knotkt.cs26.contracts.Post,
+    viewerId: String,
+    onDismiss: () -> Unit,
+    onToggleLike: (String) -> Unit,
+    onDeletePost: (String) -> Unit,
+    onCommentInputChanged: (String, String) -> Unit,
+    onAddComment: (String) -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    color = Cs26Yellow,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Box(contentAlignment = Alignment.Center) { Text("同") }
+                }
+                Column(modifier = Modifier.padding(start = 10.dp)) {
+                    Text("成员", fontWeight = FontWeight.SemiBold)
+                    Text("动态详情", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Text(post.type.label(), color = Cs26Navy, style = MaterialTheme.typography.labelMedium)
+            if (post.content.isNotBlank()) {
+                Text(post.content, style = MaterialTheme.typography.bodyLarge)
+            }
+            if (post.attachments.isNotEmpty()) {
+                Text("图片 ${post.attachments.size} 张", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                post.attachments.forEach { attachment ->
+                    Text(attachment.objectKey, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onToggleLike(post.id) }, enabled = !postState.isInteracting) {
+                    Text(if (post.likedByViewer) "已喜欢 ${post.likeCount}" else "喜欢 ${post.likeCount}")
+                }
+                if (post.authorId == viewerId) {
+                    OutlinedButton(onClick = { onDeletePost(post.id) }, enabled = !postState.isInteracting) {
+                        Text("删除")
+                    }
+                }
+            }
+            HorizontalDivider()
+            Text("评论 ${post.commentCount}", style = MaterialTheme.typography.titleMedium)
+            postState.commentsByPost[post.id].orEmpty().forEach { comment ->
+                Text("成员：${comment.content}")
+            }
+            OutlinedTextField(
+                value = postState.commentInputs[post.id].orEmpty(),
+                onValueChange = { value -> onCommentInputChanged(post.id, value) },
+                label = { Text("写评论") },
                 modifier = Modifier.fillMaxWidth(),
             )
             Button(
