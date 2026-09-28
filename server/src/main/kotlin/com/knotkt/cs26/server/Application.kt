@@ -15,6 +15,10 @@ import com.knotkt.cs26.contracts.RequestCodeRequest
 import com.knotkt.cs26.contracts.VerifyCodeRequest
 import com.knotkt.cs26.contracts.FollowStateResponse
 import com.knotkt.cs26.contracts.FollowingList
+import com.knotkt.cs26.contracts.BlockStateResponse
+import com.knotkt.cs26.contracts.BlockedUsers
+import com.knotkt.cs26.contracts.CreateReportRequest
+import com.knotkt.cs26.contracts.ReportReceipt
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
@@ -62,6 +66,7 @@ fun Application.module(
     noticeHub: NoticeHub = NoticeHub(),
     profileStore: ProfileStore = InMemoryProfileStore(),
     followStore: FollowStore = InMemoryFollowStore(),
+    safetyStore: SafetyStore = InMemorySafetyStore(),
     pushPublisher: PushPublisher = PushPublisher.fromEnvironment(),
 ) {
     install(ContentNegotiation) {
@@ -193,6 +198,53 @@ fun Application.module(
                 call.respond(FollowStateResponse(targetId, following = false))
             }
         }
+        post("/reports") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+                return@post
+            }
+            val request = call.receive<CreateReportRequest>()
+            if (request.targetId.isBlank() || request.details.length > 500) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_report", "report target and details are invalid"))
+                return@post
+            }
+            call.respond(HttpStatusCode.Created, safetyStore.createReport(session.userId, request))
+        }
+        get("/me/blocks") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else {
+                call.respond(BlockedUsers(safetyStore.listBlocked(session.userId)))
+            }
+        }
+        post("/users/{id}/block") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val targetId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (targetId.isNullOrBlank() || !safetyStore.setBlocked(session.userId, targetId, blocked = true)) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_block", "a user cannot block themselves"))
+            } else {
+                call.respond(BlockStateResponse(targetId, blocked = true))
+            }
+        }
+        delete("/users/{id}/block") {
+            val token = bearerToken(call.request.header(HttpHeaders.Authorization))
+            val session = token?.let(authService::findSession)
+            val targetId = call.parameters["id"]
+            if (session == null) {
+                call.respond(HttpStatusCode.Unauthorized, AuthError("invalid_session", "session is invalid or expired"))
+            } else if (targetId.isNullOrBlank() || !safetyStore.setBlocked(session.userId, targetId, blocked = false)) {
+                call.respond(HttpStatusCode.BadRequest, AuthError("invalid_block", "a user cannot block themselves"))
+            } else {
+                call.respond(BlockStateResponse(targetId, blocked = false))
+            }
+        }
         post("/posts") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))
             val session = token?.let(authService::findSession)
@@ -224,7 +276,13 @@ fun Application.module(
             }
             val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
             val before = call.request.queryParameters["before"]?.toLongOrNull()
-            val items = postStore.list(limit + 1, authService.findSession(token)?.userId.orEmpty(), before)
+            val viewerId = authService.findSession(token)?.userId.orEmpty()
+            val items = postStore.list(
+                limit = limit + 1,
+                viewerId = viewerId,
+                beforeEpochMillis = before,
+                blockedAuthorIds = safetyStore.listBlocked(viewerId).toSet(),
+            )
             val pageItems = items.take(limit)
             val nextCursor = if (items.size > limit) {
                 pageItems.lastOrNull()?.createdAtEpochMillis?.toString()

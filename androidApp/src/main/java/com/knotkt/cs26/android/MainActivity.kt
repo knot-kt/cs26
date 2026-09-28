@@ -28,6 +28,8 @@ import com.knotkt.cs26.shared.ProfileRepository
 import com.knotkt.cs26.shared.ProfileState
 import com.knotkt.cs26.shared.FollowRepository
 import com.knotkt.cs26.shared.FollowState
+import com.knotkt.cs26.shared.SafetyRepository
+import com.knotkt.cs26.shared.SafetyState
 import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
@@ -73,6 +75,7 @@ class MainActivity : ComponentActivity() {
     private val noticeRepository = NoticeRepository(client, baseUrl)
     private val profileRepository = ProfileRepository(client, baseUrl)
     private val followRepository = FollowRepository(client, baseUrl)
+    private val safetyRepository = SafetyRepository(client, baseUrl)
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
@@ -80,6 +83,7 @@ class MainActivity : ComponentActivity() {
     private var noticeState by mutableStateOf(NoticeState())
     private var profileState by mutableStateOf(ProfileState())
     private var followState by mutableStateOf(FollowState())
+    private var safetyState by mutableStateOf(SafetyState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private var noticeJob: Job? = null
@@ -150,6 +154,9 @@ class MainActivity : ComponentActivity() {
                 onSaveProfile = ::saveProfile,
                 followState = followState,
                 onToggleFollow = ::toggleFollow,
+                safetyState = safetyState,
+                onReportPost = ::reportPost,
+                onBlockUser = ::blockUser,
             )
         }
     }
@@ -216,6 +223,7 @@ class MainActivity : ComponentActivity() {
             if (result.isSuccess) {
                 refreshProfile()
                 refreshFollowing()
+                refreshSafety()
                 refreshNotices()
                 connectNotices()
             }
@@ -547,6 +555,55 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshSafety() {
+        val session = authState.session ?: return
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { safetyRepository.listBlocked(session.accessToken) }
+            }
+            result.onSuccess { blocked ->
+                safetyState = safetyState.copy(blockedUserIds = blocked.userIds.toSet())
+            }.onFailure { error ->
+                safetyState = safetyState.copy(error = error.message ?: "load blocked users failed")
+            }
+        }
+    }
+
+    private fun reportPost(postId: String) {
+        val session = authState.session ?: return
+        safetyState = safetyState.copy(isUpdating = true, message = null, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { safetyRepository.reportPost(session.accessToken, postId) }
+            }
+            safetyState = result.fold(
+                onSuccess = { receipt -> safetyState.copy(isUpdating = false, message = "举报已提交（${receipt.reportId.take(8)}）") },
+                onFailure = { error -> safetyState.copy(isUpdating = false, error = error.message ?: "report failed") },
+            )
+        }
+    }
+
+    private fun blockUser(userId: String) {
+        val session = authState.session ?: return
+        safetyState = safetyState.copy(isUpdating = true, message = null, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { safetyRepository.block(session.accessToken, userId) }
+            }
+            safetyState = result.fold(
+                onSuccess = { response ->
+                    safetyState.copy(
+                        blockedUserIds = if (response.blocked) safetyState.blockedUserIds + userId else safetyState.blockedUserIds - userId,
+                        isUpdating = false,
+                        message = "已屏蔽该成员",
+                    )
+                },
+                onFailure = { error -> safetyState.copy(isUpdating = false, error = error.message ?: "block failed") },
+            )
+            if (result.isSuccess) refreshPosts()
+        }
+    }
+
     private fun connectNotices() {
         val session = authState.session ?: return
         noticeJob?.cancel()
@@ -806,6 +863,7 @@ class MainActivity : ComponentActivity() {
             noticeState = NoticeState()
             profileState = ProfileState()
             followState = FollowState()
+            safetyState = SafetyState()
         }
     }
 

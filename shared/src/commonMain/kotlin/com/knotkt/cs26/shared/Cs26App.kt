@@ -100,6 +100,9 @@ fun Cs26App(
     onSaveProfile: () -> Unit,
     followState: FollowState,
     onToggleFollow: (String) -> Unit,
+    safetyState: SafetyState,
+    onReportPost: (String) -> Unit,
+    onBlockUser: (String) -> Unit,
 ) {
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -154,6 +157,9 @@ fun Cs26App(
                     onSaveProfile = onSaveProfile,
                     followState = followState,
                     onToggleFollow = onToggleFollow,
+                    safetyState = safetyState,
+                    onReportPost = onReportPost,
+                    onBlockUser = onBlockUser,
                 )
             }
         }
@@ -256,6 +262,9 @@ private fun SocialShell(
     onSaveProfile: () -> Unit,
     followState: FollowState,
     onToggleFollow: (String) -> Unit,
+    safetyState: SafetyState,
+    onReportPost: (String) -> Unit,
+    onBlockUser: (String) -> Unit,
 ) {
     var selectedDestination by rememberSaveable { mutableStateOf(SocialDestination.PLAZA) }
     var showComposer by rememberSaveable { mutableStateOf(false) }
@@ -324,6 +333,9 @@ private fun SocialShell(
                     onAddComment = onAddComment,
                     followState = followState,
                     onToggleFollow = onToggleFollow,
+                    safetyState = safetyState,
+                    onReportPost = onReportPost,
+                    onBlockUser = onBlockUser,
                 )
 
                 SocialDestination.MESSAGES -> MessagesScreen(
@@ -380,6 +392,9 @@ private fun SocialShell(
             onDeletePost = onDeletePost,
             onCommentInputChanged = onCommentInputChanged,
             onAddComment = onAddComment,
+            safetyState = safetyState,
+            onReportPost = onReportPost,
+            onBlockUser = onBlockUser,
         )
     }
 }
@@ -399,6 +414,9 @@ private fun PlazaScreen(
     onAddComment: (String) -> Unit,
     followState: FollowState,
     onToggleFollow: (String) -> Unit,
+    safetyState: SafetyState,
+    onReportPost: (String) -> Unit,
+    onBlockUser: (String) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -727,6 +745,9 @@ private fun PostDetailSheet(
     onDeletePost: (String) -> Unit,
     onCommentInputChanged: (String, String) -> Unit,
     onAddComment: (String) -> Unit,
+    safetyState: SafetyState,
+    onReportPost: (String) -> Unit,
+    onBlockUser: (String) -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -771,6 +792,28 @@ private fun PostDetailSheet(
                         Text("删除")
                     }
                 }
+            }
+            if (post.authorId != viewerId) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { onReportPost(post.id) },
+                        enabled = !safetyState.isUpdating,
+                    ) {
+                        Text("举报")
+                    }
+                    OutlinedButton(
+                        onClick = { onBlockUser(post.authorId) },
+                        enabled = !safetyState.isUpdating,
+                    ) {
+                        Text("屏蔽成员")
+                    }
+                }
+            }
+            safetyState.message?.let { message ->
+                Text(message, color = Cs26Navy, style = MaterialTheme.typography.bodySmall)
+            }
+            safetyState.error?.let { error ->
+                Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             HorizontalDivider()
             Text("评论 ${post.commentCount}", style = MaterialTheme.typography.titleMedium)
