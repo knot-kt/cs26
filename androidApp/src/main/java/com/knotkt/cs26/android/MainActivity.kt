@@ -30,6 +30,8 @@ import com.knotkt.cs26.shared.FollowRepository
 import com.knotkt.cs26.shared.FollowState
 import com.knotkt.cs26.shared.SafetyRepository
 import com.knotkt.cs26.shared.SafetyState
+import com.knotkt.cs26.shared.GroupRepository
+import com.knotkt.cs26.shared.GroupState
 import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
@@ -76,6 +78,7 @@ class MainActivity : ComponentActivity() {
     private val profileRepository = ProfileRepository(client, baseUrl)
     private val followRepository = FollowRepository(client, baseUrl)
     private val safetyRepository = SafetyRepository(client, baseUrl)
+    private val groupRepository = GroupRepository(client, baseUrl)
     private var healthState by mutableStateOf(HealthState())
     private var authState by mutableStateOf(AuthState())
     private var postState by mutableStateOf(PostState())
@@ -84,6 +87,7 @@ class MainActivity : ComponentActivity() {
     private var profileState by mutableStateOf(ProfileState())
     private var followState by mutableStateOf(FollowState())
     private var safetyState by mutableStateOf(SafetyState())
+    private var groupState by mutableStateOf(GroupState())
     private var chatJob: Job? = null
     private var chatSession: io.ktor.client.plugins.websocket.DefaultClientWebSocketSession? = null
     private var noticeJob: Job? = null
@@ -157,6 +161,11 @@ class MainActivity : ComponentActivity() {
                 safetyState = safetyState,
                 onReportPost = ::reportPost,
                 onBlockUser = ::blockUser,
+                groupState = groupState,
+                onGroupNameChanged = { name -> groupState = groupState.copy(nameInput = name, error = null) },
+                onRefreshGroups = ::refreshGroups,
+                onCreateGroup = ::createGroup,
+                onSelectConversation = ::selectConversation,
             )
         }
     }
@@ -224,6 +233,7 @@ class MainActivity : ComponentActivity() {
                 refreshProfile()
                 refreshFollowing()
                 refreshSafety()
+                refreshGroups()
                 refreshNotices()
                 connectNotices()
             }
@@ -604,6 +614,57 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshGroups() {
+        val session = authState.session ?: return
+        groupState = groupState.copy(isLoading = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { groupRepository.list(session.accessToken) }
+            }
+            groupState = result.fold(
+                onSuccess = { page ->
+                    groupState.copy(
+                        groups = page.items,
+                        selectedConversationId = groupState.selectedConversationId
+                            ?.takeIf { selected -> page.items.any { it.id == selected } },
+                        isLoading = false,
+                    )
+                },
+                onFailure = { error -> groupState.copy(isLoading = false, error = error.message ?: "load groups failed") },
+            )
+        }
+    }
+
+    private fun createGroup() {
+        val session = authState.session ?: return
+        val name = groupState.nameInput.trim()
+        if (name.isBlank()) return
+        groupState = groupState.copy(isCreating = true, error = null)
+        scope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) { groupRepository.create(session.accessToken, name) }
+            }
+            groupState = result.fold(
+                onSuccess = { group ->
+                    groupState.copy(
+                        groups = groupState.groups + group,
+                        nameInput = "",
+                        selectedConversationId = group.id,
+                        isCreating = false,
+                    )
+                },
+                onFailure = { error -> groupState.copy(isCreating = false, error = error.message ?: "create group failed") },
+            )
+            if (result.isSuccess) selectConversation(result.getOrThrow().id)
+        }
+    }
+
+    private fun selectConversation(conversationId: String) {
+        groupState = groupState.copy(selectedConversationId = conversationId)
+        chatState = chatState.copy(conversationId = conversationId, messages = emptyList(), error = null)
+        connectChat()
+    }
+
     private fun connectNotices() {
         val session = authState.session ?: return
         noticeJob?.cancel()
@@ -864,6 +925,7 @@ class MainActivity : ComponentActivity() {
             profileState = ProfileState()
             followState = FollowState()
             safetyState = SafetyState()
+            groupState = GroupState()
         }
     }
 
