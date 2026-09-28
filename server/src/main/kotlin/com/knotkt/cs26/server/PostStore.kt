@@ -3,11 +3,17 @@ package com.knotkt.cs26.server
 import com.knotkt.cs26.contracts.Comment
 import com.knotkt.cs26.contracts.MediaAttachment
 import com.knotkt.cs26.contracts.Post
+import com.knotkt.cs26.contracts.PostType
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 
 interface PostStore {
-    fun create(authorId: String, content: String, attachments: List<MediaAttachment>): Post
+    fun create(
+        authorId: String,
+        content: String,
+        attachments: List<MediaAttachment>,
+        type: PostType = PostType.GENERAL,
+    ): Post
 
     fun list(limit: Int, viewerId: String): List<Post>
 
@@ -25,12 +31,18 @@ class InMemoryPostStore : PostStore {
     private val likes = java.util.concurrent.ConcurrentHashMap<String, MutableSet<String>>()
     private val comments = java.util.concurrent.ConcurrentHashMap<String, MutableList<Comment>>()
 
-    override fun create(authorId: String, content: String, attachments: List<MediaAttachment>): Post = Post(
+    override fun create(
+        authorId: String,
+        content: String,
+        attachments: List<MediaAttachment>,
+        type: PostType,
+    ): Post = Post(
         id = UUID.randomUUID().toString(),
         authorId = authorId,
         content = content,
         createdAtEpochMillis = System.currentTimeMillis(),
         attachments = attachments,
+        type = type,
     ).also(posts::add)
 
     override fun list(limit: Int, viewerId: String): List<Post> = posts

@@ -28,6 +28,7 @@ import com.knotkt.cs26.contracts.ChatStreamEvent
 import com.knotkt.cs26.contracts.SendMessageRequest
 import com.knotkt.cs26.contracts.MediaAttachment
 import com.knotkt.cs26.contracts.MediaKind
+import com.knotkt.cs26.contracts.PostType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -109,6 +110,7 @@ class MainActivity : ComponentActivity() {
                 onLogout = ::logout,
                 postState = postState,
                 onPostContentChanged = { content -> postState = postState.copy(content = content, error = null) },
+                onPostTypeChanged = { type -> postState = postState.copy(type = type, error = null) },
                 onPublishPost = ::publishPost,
                 onRefreshPosts = ::refreshPosts,
                 onAddImage = { imagePicker.launch("image/*") },
@@ -458,10 +460,14 @@ class MainActivity : ComponentActivity() {
         postState = postState.copy(isPublishing = true, error = null)
         scope.launch {
             val result = runCatching {
-                withContext(Dispatchers.IO) { postRepository.create(session.accessToken, content, postState.attachments) }
+                withContext(Dispatchers.IO) {
+                    postRepository.create(session.accessToken, content, postState.attachments, postState.type)
+                }
             }
             postState = result.fold(
-                onSuccess = { post -> postState.copy(content = "", posts = listOf(post) + postState.posts, isPublishing = false) },
+                onSuccess = {
+                    post -> postState.copy(content = "", type = PostType.GENERAL, posts = listOf(post) + postState.posts, isPublishing = false)
+                },
                 onFailure = { error -> postState.copy(isPublishing = false, error = error.message ?: "publish post failed") },
             )
         }

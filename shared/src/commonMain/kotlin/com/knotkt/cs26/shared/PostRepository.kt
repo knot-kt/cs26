@@ -3,6 +3,7 @@ package com.knotkt.cs26.shared
 import com.knotkt.cs26.contracts.CreatePostRequest
 import com.knotkt.cs26.contracts.Post
 import com.knotkt.cs26.contracts.PostPage
+import com.knotkt.cs26.contracts.PostType
 import com.knotkt.cs26.contracts.MediaUploadResponse
 import com.knotkt.cs26.contracts.Comment
 import com.knotkt.cs26.contracts.CreateCommentRequest
@@ -64,11 +65,16 @@ class PostRepository(
         }
         .body()
 
-    suspend fun create(accessToken: String, content: String, attachments: List<com.knotkt.cs26.contracts.MediaAttachment>): Post = client
+    suspend fun create(
+        accessToken: String,
+        content: String,
+        attachments: List<com.knotkt.cs26.contracts.MediaAttachment>,
+        type: PostType = PostType.GENERAL,
+    ): Post = client
         .post("$baseUrl/posts") {
             header(HttpHeaders.Authorization, "Bearer $accessToken")
             contentType(ContentType.Application.Json)
-            setBody(com.knotkt.cs26.contracts.CreatePostRequest(content, attachments))
+            setBody(CreatePostRequest(content, attachments, type))
         }
         .body()
 

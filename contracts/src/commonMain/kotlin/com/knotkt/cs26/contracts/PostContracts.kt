@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class CreatePostRequest(
     val content: String,
     val attachments: List<MediaAttachment> = emptyList(),
+    val type: PostType = PostType.GENERAL,
 )
 
 @Serializable
@@ -17,6 +18,17 @@ data class CreateCommentRequest(
 enum class MediaKind {
     IMAGE,
     AUDIO,
+}
+
+@Serializable
+enum class PostType {
+    GENERAL,
+    RANT,
+    HELP,
+    EVENT,
+    LOST_AND_FOUND,
+    INTEREST,
+    USED_ITEM,
 }
 
 @Serializable
@@ -42,6 +54,7 @@ data class Post(
     val content: String,
     val createdAtEpochMillis: Long,
     val attachments: List<MediaAttachment> = emptyList(),
+    val type: PostType = PostType.GENERAL,
     val likeCount: Int = 0,
     val commentCount: Int = 0,
     val likedByViewer: Boolean = false,
