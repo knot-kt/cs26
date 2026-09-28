@@ -145,7 +145,7 @@ fun Application.module(
                 )
                 return@post
             }
-            call.respond(HttpStatusCode.Created, postStore.create(session.userId, content, attachments))
+            call.respond(HttpStatusCode.Created, postStore.create(session.userId, content, attachments, request.type))
         }
         get("/posts") {
             val token = bearerToken(call.request.header(HttpHeaders.Authorization))

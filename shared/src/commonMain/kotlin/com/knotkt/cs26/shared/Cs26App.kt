@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.knotkt.cs26.contracts.MediaKind
+import com.knotkt.cs26.contracts.PostType
 
 private val Cs26Navy = Color(0xFF14345F)
 private val Cs26Yellow = Color(0xFFFFC857)
@@ -68,6 +69,7 @@ fun Cs26App(
     onLogout: () -> Unit,
     postState: PostState,
     onPostContentChanged: (String) -> Unit,
+    onPostTypeChanged: (PostType) -> Unit,
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
     onAddImage: () -> Unit,
@@ -112,6 +114,7 @@ fun Cs26App(
                     onLogout = onLogout,
                     postState = postState,
                     onPostContentChanged = onPostContentChanged,
+                    onPostTypeChanged = onPostTypeChanged,
                     onPublishPost = onPublishPost,
                     onRefreshPosts = onRefreshPosts,
                     onAddImage = onAddImage,
@@ -204,6 +207,7 @@ private fun SocialShell(
     onLogout: () -> Unit,
     postState: PostState,
     onPostContentChanged: (String) -> Unit,
+    onPostTypeChanged: (PostType) -> Unit,
     onPublishPost: () -> Unit,
     onRefreshPosts: () -> Unit,
     onAddImage: () -> Unit,
@@ -314,6 +318,7 @@ private fun SocialShell(
             postState = postState,
             onDismiss = { showComposer = false },
             onPostContentChanged = onPostContentChanged,
+            onPostTypeChanged = onPostTypeChanged,
             onPublishPost = onPublishPost,
             onAddImage = onAddImage,
             onTakePhoto = onTakePhoto,
@@ -429,6 +434,7 @@ private fun PostComposerSheet(
     postState: PostState,
     onDismiss: () -> Unit,
     onPostContentChanged: (String) -> Unit,
+    onPostTypeChanged: (PostType) -> Unit,
     onPublishPost: () -> Unit,
     onAddImage: () -> Unit,
     onTakePhoto: () -> Unit,
@@ -444,6 +450,17 @@ private fun PostComposerSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text("发布动态", style = MaterialTheme.typography.titleLarge)
+            Text("选择内容类型", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PostTypeOption(PostType.GENERAL, postState.type, onPostTypeChanged)
+                PostTypeOption(PostType.RANT, postState.type, onPostTypeChanged)
+                PostTypeOption(PostType.HELP, postState.type, onPostTypeChanged)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PostTypeOption(PostType.EVENT, postState.type, onPostTypeChanged)
+                PostTypeOption(PostType.LOST_AND_FOUND, postState.type, onPostTypeChanged)
+                PostTypeOption(PostType.USED_ITEM, postState.type, onPostTypeChanged)
+            }
             OutlinedTextField(
                 value = postState.content,
                 onValueChange = onPostContentChanged,
@@ -489,6 +506,33 @@ private fun PostComposerSheet(
 }
 
 @Composable
+private fun PostTypeOption(
+    type: PostType,
+    selectedType: PostType,
+    onSelected: (PostType) -> Unit,
+) {
+    if (type == selectedType) {
+        Button(onClick = { onSelected(type) }) {
+            Text(type.label())
+        }
+    } else {
+        OutlinedButton(onClick = { onSelected(type) }) {
+            Text(type.label())
+        }
+    }
+}
+
+private fun PostType.label(): String = when (this) {
+    PostType.GENERAL -> "普通"
+    PostType.RANT -> "吐槽"
+    PostType.HELP -> "求助"
+    PostType.EVENT -> "活动"
+    PostType.LOST_AND_FOUND -> "失物"
+    PostType.INTEREST -> "兴趣"
+    PostType.USED_ITEM -> "闲置"
+}
+
+@Composable
 private fun PostCard(
     viewerId: String,
     postState: PostState,
@@ -526,6 +570,11 @@ private fun PostCard(
                 }
             }
             if (post.content.isNotBlank()) Text(post.content)
+            Text(
+                post.type.label(),
+                color = Cs26Navy,
+                style = MaterialTheme.typography.labelMedium,
+            )
             if (post.attachments.isNotEmpty()) {
                 Text("图片 ${post.attachments.size} 张", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
