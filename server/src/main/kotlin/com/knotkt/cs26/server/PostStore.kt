@@ -15,7 +15,12 @@ interface PostStore {
         type: PostType = PostType.GENERAL,
     ): Post
 
-    fun list(limit: Int, viewerId: String, beforeEpochMillis: Long? = null): List<Post>
+    fun list(
+        limit: Int,
+        viewerId: String,
+        beforeEpochMillis: Long? = null,
+        blockedAuthorIds: Set<String> = emptySet(),
+    ): List<Post>
 
     fun delete(postId: String, authorId: String): Boolean
 
@@ -45,9 +50,15 @@ class InMemoryPostStore : PostStore {
         type = type,
     ).also(posts::add)
 
-    override fun list(limit: Int, viewerId: String, beforeEpochMillis: Long?): List<Post> = posts
+    override fun list(
+        limit: Int,
+        viewerId: String,
+        beforeEpochMillis: Long?,
+        blockedAuthorIds: Set<String>,
+    ): List<Post> = posts
         .asReversed()
         .asSequence()
+        .filterNot { it.authorId in blockedAuthorIds }
         .filter { beforeEpochMillis == null || it.createdAtEpochMillis < beforeEpochMillis }
         .take(limit)
         .map { post -> post.withStats(viewerId) }
